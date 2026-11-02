@@ -1,0 +1,300 @@
+pragma ComponentBehavior: Bound
+
+// Reads one tool's usage cache the way the shared collectors leave it:
+// ~/.cache/<tool>-usage.json, written by ryoku-ai-usage.service. Mirrors the
+// legacy parser of the shell's AiUsage service, kept local so a module failure
+// stays local (the shell service is not imported across namespaces).
+import QtQuick
+import Quickshell
+import Quickshell.Io
+
+Item {
+    id: root
+
+    property string tool: "opencode"
+    property bool refreshing: false
+
+    // ── parsed state ──
+    property bool has: false
+    property bool fresh: false
+    property int pct5h: 0
+    property int percent7d: 0
+    property int reset5hTs: 0
+    property int reset7dTs: 0
+    // Relative times recompute when this advances (see relative()).
+    property int tick: 0
+    property string plan: ""
+    property string windowTokens: ""   // "_tokens_used / _window_limit"
+    property string weekTokens: ""     // "_7d_tokens / _7d_limit"
+    property int today: 0              // tokens today
+    property var recent: []            // [{date, tokens}] fallback when the cache has no _days
+    property var days: []              // [{date, tokens}] full history from the collector
+    property var hours: []             // [{start, tokens}] the last 48 clock hours
+    property var sessions: []          // [{id, title, directory, started, updated, tokens, cost, running}]
+    property var periods: ({})         // "7"/"30"/"all" → {tokens, cacheRate, cost, sessions, models}
+    readonly property var runningSessions: root.sessions.filter(s => s && s.running)
+    // A provider plan is what makes a 5h/7d window meaningful. The local
+    // OpenCode collector says "local messages" and invents its budgets, so
+    // those percentages would be fiction and the card stays away.
+    readonly property bool hasPlan: {
+        if (!root.has) return false
+        const name = String(root.plan || "").trim().toLowerCase()
+        if (name.length === 0)
+            return root.reset5hTs > 0 || root.reset7dTs > 0
+        return name !== "local messages" && name !== "local" && name !== "unknown"
+    }
+    function period(key: string): var {
+        return root.periods?.[key] ?? null
+    }
+
+    // Period rows come from the collector with a raw model name; give them the
+    // same short label and numeric fields the rest of the card expects.
+    function shortName(name: string): string {
+        return String(name || "").replace(
+            /\s*\((?:opencode|openrouter|openai|claude|codex|deepseek)\)$/i, "")
+    }
+    function normalizePeriods(source: var): var {
+        const out = ({})
+        for (const key in source) {
+            const period = source[key] ?? ({})
+            const rows = []
+            for (const model of (period.models ?? [])) {
+                rows.push(Object.assign({}, model, {
+                    name: String(model.name || ""),
+                    nameShort: root.shortName(model.name),
+                    totalLabel: String(model.totalLabel || root.kmg(Number(model.total) || 0)),
+                    cacheRate: Number(model.cacheRate) || 0,
+                    pct: Math.max(0, Math.min(100, Number(model.pct) || 0))
+                }))
+            }
+            out[key] = Object.assign({}, period, {
+                tokens: Number(period.tokens) || 0,
+                cacheRate: Number(period.cacheRate) || 0,
+                cost: Number(period.cost) || 0,
+                sessions: Number(period.sessions) || 0,
+                models: rows
+            })
+        }
+        return out
+    }
+    // Newest write any session made, in ms: what "Now" counts from.
+    readonly property double lastActivityMs: {
+        let latest = 0
+        for (const session of root.sessions)
+            latest = Math.max(latest, Number(session?.updated ?? 0))
+        return latest
+    }
+    // "18 min. ago", and nothing at all before the first message.
+    function relative(ms: double): string {
+        root.tick
+        if (!(ms > 0)) return ""
+        const mins = Math.max(0, Math.round((Date.now() - ms) / 60000))
+        if (mins < 2) return "just now"
+        if (mins < 60) return mins + " min. ago"
+        const h = Math.floor(mins / 60)
+        if (h < 24) return h + (h === 1 ? " hr. ago" : " hrs. ago")
+        const d = Math.floor(h / 24)
+        return d + (d === 1 ? " day ago" : " days ago")
+    }
+
+    Component.onCompleted: cacheFile.reload()
+
+    function empty() {
+        root.has = false
+        root.fresh = false
+        root.pct5h = 0
+        root.percent7d = 0
+        root.reset5hTs = 0
+        root.reset7dTs = 0
+        root.plan = ""
+        root.windowTokens = ""
+        root.weekTokens = ""
+        root.today = 0
+        root.recent = []
+        root.days = []
+        root.hours = []
+        root.sessions = []
+        root.periods = ({})
+    }
+
+    function pct(value: string): int {
+        return Math.max(0, Math.min(100, Math.round((parseFloat(value) || 0) * 100)))
+    }
+
+    function kmg(value: int): string {
+        if (value >= 1000000) {
+            const m = value / 1000000
+            return m.toFixed(2).replace(/\.?0+$/, "") + "M"
+        }
+        if (value >= 1000) {
+            const k = value / 1000
+            return k >= 100 ? Math.round(k) + "K" : k.toFixed(1).replace(/\.0$/, "") + "K"
+        }
+        return String(value)
+    }
+
+    function refresh(): void {
+        if (root.refreshing) return
+        root.refreshing = true
+        staleTimer.restart()
+        collector.running = false
+        collector.running = true
+    }
+
+    function parse(text: string, modifiedAt: int): void {
+        root.empty()
+        try {
+            const data = JSON.parse(String(text || "").trim())
+            if (Object.keys(data).length === 0) return
+            root.has = true
+            root.fresh = modifiedAt > 0
+                && (Date.now() / 1000 - modifiedAt) < 900
+                && data._source !== "stale"
+            root.pct5h = root.pct(data["5h-utilization"])
+            root.percent7d = root.pct(data["7d-utilization"])
+            root.reset5hTs = parseInt(data["5h-reset"]) || 0
+            root.reset7dTs = parseInt(data["7d-reset"]) || 0
+            root.plan = String(data._plan || "")
+            const used = Number(data._tokens_used) || 0
+            const limit = Number(data._window_limit) || 0
+            root.windowTokens = used > 0
+                ? root.kmg(used) + " / " + root.kmg(limit)
+                : ""
+            const weekUsed = Number(data._7d_tokens) || 0
+            const weekLimit = Number(data._7d_limit) || 0
+            root.weekTokens = weekLimit > 0
+                ? root.kmg(weekUsed) + " / " + root.kmg(weekLimit)
+                : ""
+            root.today = Number(data._today_tokens) || 0
+            if (data._recent_days instanceof Array) {
+                const days = data._recent_days
+                root.recent = days.slice(Math.max(0, days.length - 7))
+            }
+            if (data._hours instanceof Array && data._hours.length > 0) {
+                const hours = []
+                for (const hour of data._hours) {
+                    hours.push({ start: Number(hour?.start) || 0, tokens: Number(hour?.tokens) || 0 })
+                }
+                root.hours = hours
+            }
+            if (data._days instanceof Array && data._days.length > 0) {
+                const history = []
+                for (const day of data._days) {
+                    history.push({
+                        date: String(day?.date ?? ""),
+                        tokens: Number(day?.tokens) || 0
+                    })
+                }
+                root.days = history
+            } else {
+                // Older collectors carry only the seven-day window.
+                root.days = root.recent.map(day => ({ date: String(day?.date ?? ""), tokens: Number(day?.tokens) || 0 }))
+            }
+            const sessionRows = []
+            for (const s of (data._sessions instanceof Array ? data._sessions : [])) {
+                sessionRows.push({
+                    id: String(s?.id ?? ""),
+                    title: String(s?.title ?? ""),
+                    directory: String(s?.directory ?? ""),
+                    started: Number(s?.started) || 0,
+                    updated: Number(s?.updated) || 0,
+                    tokens: Number(s?.tokens) || 0,
+                    cost: Number(s?.cost) || 0,
+                    running: s?.running === true
+                })
+            }
+            root.sessions = sessionRows
+            root.periods = (data._periods && typeof data._periods === "object")
+                ? root.normalizePeriods(data._periods) : ({})
+        } catch (e) {
+            console.warn("[ai-usage] parse failed:", e)
+        }
+    }
+
+    // The collectors write under ~/.cache whatever XDG_CACHE_HOME says, so the
+    // reader follows them rather than the XDG variable (same as the shell).
+    readonly property string cacheDir: Quickshell.env("HOME") + "/.cache"
+    readonly property string cachePath: root.cacheDir + "/" + root.tool + "-usage.json"
+
+    property string _pendingText: ""
+    property bool _missing: true
+
+    FileView {
+        id: cacheFile
+        path: root.cachePath
+        blockLoading: false
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            root._missing = false
+            root._pendingText = cacheFile.text()
+            stat.running = false
+            stat.running = true
+        }
+        onLoadFailed: {
+            root._missing = true
+            root._pendingText = ""
+            root.empty()
+        }
+    }
+
+    Process {
+        id: stat
+        command: ["stat", "-c", "%Y", root.cachePath]
+        stdout: StdioCollector { id: statOutput }
+        onExited: {
+            if (!root._missing)
+                root.parse(root._pendingText, parseInt(statOutput.text.trim()) || 0)
+        }
+    }
+    // A cache that appeared after first scan is a plain reload away.
+    Timer {
+        interval: 6000
+        repeat: true
+        running: root._missing
+        onTriggered: cacheFile.reload()
+    }
+
+    Process {
+        id: collector
+        command: ["ryoku-host", "svc", "--user", "start", "ryoku-ai-usage.service"]
+        onExited: {
+            _pendingReloadTimer.restart()
+        }
+    }
+    Timer {
+        id: _pendingReloadTimer
+        interval: 1200
+        onTriggered: cacheFile.reload()
+    }
+    Timer {
+        id: staleTimer
+        interval: 10000
+        onTriggered: root.refreshing = false
+    }
+    // Relative times ("18 min. ago", a session's elapsed) have to move while
+    // the card sits on the page; one ticker keeps them honest.
+    Timer {
+        interval: 30000
+        repeat: true
+        triggeredOnStart: true
+        running: root.has
+        onTriggered: root.tick++
+    }
+    // The page has no reload button: the collector runs again every minute
+    // while the module is on screen, so the numbers are never older than that.
+    Timer {
+        interval: 60000
+        repeat: true
+        triggeredOnStart: true
+        running: root.has
+        onTriggered: root.refresh()
+    }
+    Connections {
+        target: cacheFile
+        function onFileChanged() {
+            root.refreshing = false
+        }
+    }
+}
