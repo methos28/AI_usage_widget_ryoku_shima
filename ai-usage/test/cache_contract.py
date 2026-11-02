@@ -53,7 +53,8 @@ def main():
     # Hourly history.
     hours = data.get("_hours", [])
     check(isinstance(hours, list) and len(hours) == 48, f"_hours should be 48, got {len(hours)}")
-    check(all({"start", "tokens"} <= set(hour) for hour in hours), "_hours rows need start+tokens")
+    check(all({"start", "tokens", "cacheRead"} <= set(hour) for hour in hours),
+          "_hours rows need start+tokens+cacheRead")
     if hours:
         now_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
         check(abs(hours[-1]["start"] - int(now_hour.timestamp() * 1000)) < 60_000,

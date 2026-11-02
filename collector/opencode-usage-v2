@@ -413,15 +413,21 @@ def hour_history(msgs: list[dict], hours: int = 48) -> list[dict]:
     current = hour_start_ms(int(time.time() * 1000))
     start = current - (hours - 1) * 3600 * 1000
     by_hour: dict[int, int] = {}
+    cache_by_hour: dict[int, int] = {}
     for msg in msgs:
         if msg["time"] < start:
             continue
         key = hour_start_ms(msg["time"])
         by_hour[key] = by_hour.get(key, 0) + msg["total"]
+        cache_by_hour[key] = cache_by_hour.get(key, 0) + msg["cache_read"]
     out = []
     for i in range(hours - 1, -1, -1):
         key = current - i * 3600 * 1000
-        out.append({"start": key, "tokens": int(by_hour.get(key, 0))})
+        out.append({
+            "start": key,
+            "tokens": int(by_hour.get(key, 0)),
+            "cacheRead": int(cache_by_hour.get(key, 0)),
+        })
     return out
 
 

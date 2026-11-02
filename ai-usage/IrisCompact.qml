@@ -116,7 +116,7 @@ Item {
                 midnight.setHours(0, 0, 0, 0)
                 const byStart = ({})
                 for (const hour of allHours)
-                    byStart[Number(hour?.start ?? 0)] = Number(hour?.tokens ?? 0)
+                    byStart[Number(hour?.start ?? 0)] = root.historyWeight(hour)
                 for (let i = 0; i < 24; i++) {
                     const start = midnight.getTime() + i * 3600000
                     const tokens = Number(byStart[start] ?? 0)
@@ -129,7 +129,7 @@ Item {
             }
             const list = allHours.slice(Math.max(0, allHours.length - 24))
             for (const hour of list) {
-                const tokens = Number(hour?.tokens ?? 0)
+                const tokens = root.historyWeight(hour)
                 hourBuckets.push({ start: Number(hour?.start ?? 0), tokens: tokens })
                 hourTotal += tokens
                 hourPeak = Math.max(hourPeak, tokens)
@@ -148,7 +148,7 @@ Item {
         let peak = 1
         if (!weekly) {
             for (const day of list) {
-                const tokens = Number(day?.tokens ?? 0)
+                const tokens = root.historyWeight(day)
                 buckets.push({ date: String(day?.date ?? ""), tokens: tokens })
                 total += tokens
                 peak = Math.max(peak, tokens)
@@ -158,7 +158,7 @@ Item {
             for (let end = list.length; end > 0; end -= 7) {
                 const start = Math.max(0, end - 7)
                 let tokens = 0
-                for (let i = start; i < end; i++) tokens += Number(list[i]?.tokens ?? 0)
+                for (let i = start; i < end; i++) tokens += root.historyWeight(list[i])
                 groups.unshift({ date: String(list[start]?.date ?? ""), tokens: tokens })
             }
             for (const group of groups) {
@@ -170,6 +170,11 @@ Item {
         return ({ buckets: buckets, total: total, peak: peak, span: list.length, unit: "days" })
     }
     readonly property var trendBuckets: root.trend.buckets
+
+    // Every chart weighs tokens plus cache reads, like the Activity card.
+    function historyWeight(entry) {
+        return Number(entry?.tokens ?? 0) + Number(entry?.cacheRead ?? 0)
+    }
 
     function dayLabel(date: string): string {
         const parsed = new Date(String(date) + "T12:00:00")

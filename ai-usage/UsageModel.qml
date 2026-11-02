@@ -173,7 +173,11 @@ Item {
             if (data._hours instanceof Array && data._hours.length > 0) {
                 const hours = []
                 for (const hour of data._hours) {
-                    hours.push({ start: Number(hour?.start) || 0, tokens: Number(hour?.tokens) || 0 })
+                    hours.push({
+                        start: Number(hour?.start) || 0,
+                        tokens: Number(hour?.tokens) || 0,
+                        cacheRead: Number(hour?.cacheRead) || 0
+                    })
                 }
                 root.hours = hours
             }

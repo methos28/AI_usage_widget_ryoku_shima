@@ -176,7 +176,7 @@ side by side.
 | **Now** | The agent, when it last wrote, and up to two running sessions: title, how long it has run, its tokens. The dot is green and breathes while a session runs. |
 | **Limits** | Only appears when the cache reports a real provider plan: today's tokens plus the 5h/7d windows with meters. |
 | **Spending** | Only appears when the period recorded a cost. Amount, API value, tokens and cache share. |
-| **Trend** | Bars for the chosen period. Today and Last 24 hours are hourly; the rest are daily (weekly above 100 buckets). Hover a bar to read it. |
+| **Trend** | Bars for the chosen period, cache reads included. Today and Last 24 hours are hourly; the rest are daily (weekly above 100 buckets). Hover a bar to read it. |
 | **Models** | The top three models of the period: cache-inclusive total, share meter, and `I… O… R… CR…` with the cache hit rate. |
 | **Activity** | A heatmap of every recorded day, plus the all-time total (cache reads included), active days and the busiest day. The flame is your current streak; hover it. |
 
