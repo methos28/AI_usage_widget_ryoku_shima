@@ -121,7 +121,7 @@ Item {
         return Math.max(0, Math.min(100, Math.round((parseFloat(value) || 0) * 100)))
     }
 
-    function kmg(value: int): string {
+    function kmg(value: double): string {
         if (value >= 1000000) {
             const m = value / 1000000
             return m.toFixed(2).replace(/\.?0+$/, "") + "M"
@@ -182,7 +182,8 @@ Item {
                 for (const day of data._days) {
                     history.push({
                         date: String(day?.date ?? ""),
-                        tokens: Number(day?.tokens) || 0
+                        tokens: Number(day?.tokens) || 0,
+                        cacheRead: Number(day?.cacheRead) || 0
                     })
                 }
                 root.days = history

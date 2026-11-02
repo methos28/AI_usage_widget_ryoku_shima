@@ -41,12 +41,14 @@ def main():
     # Daily history for Trend / Activity.
     days = data.get("_days", [])
     check(isinstance(days, list) and len(days) > 0, "_days empty")
-    check(all({"date", "tokens"} <= set(day) for day in days), "_days rows need date+tokens")
+    check(all({"date", "tokens", "cacheRead"} <= set(day) for day in days),
+          "_days rows need date+tokens+cacheRead")
     check([day["date"] for day in days] == sorted(day["date"] for day in days),
           "_days not oldest-to-newest")
     check(days and days[-1]["date"] == datetime.now().strftime("%Y-%m-%d"),
           "_days does not end today")
     check(all(day["tokens"] >= 0 for day in days), "negative token count in _days")
+    check(all(day["cacheRead"] >= 0 for day in days), "negative cacheRead in _days")
 
     # Hourly history.
     hours = data.get("_hours", [])
@@ -70,11 +72,15 @@ def main():
         check(period.get("tokens", 0) >= 0, f"_periods[{key}] negative tokens")
         models = period.get("models", [])
         check(len(models) <= 8, f"_periods[{key}] more than 8 models")
-        check([m["total"] for m in models] == sorted((m["total"] for m in models), reverse=True),
-              f"_periods[{key}] models not sorted by total")
+        weights = [m["totalWithCacheRead"] for m in models]
+        check(weights == sorted(weights, reverse=True),
+              f"_periods[{key}] models not sorted by cache-inclusive total")
         for model in models:
-            check({"name", "total", "totalLabel", "cacheRate", "pct"} <= set(model),
+            check({"name", "total", "totalLabel", "totalWithCacheRead",
+                   "totalWithCacheReadLabel", "cacheRate", "pct"} <= set(model),
                   f"_periods[{key}] model row incomplete: {model.get('name')}")
+            check(model.get("totalWithCacheRead", 0) >= model.get("total", 0),
+                  f"_periods[{key}] cache-inclusive total below total")
             check(0 <= model.get("cacheRate", 0) <= 1, f"_periods[{key}] model cacheRate range")
             check(0 <= model.get("pct", 0) <= 100, f"_periods[{key}] model pct range")
 
