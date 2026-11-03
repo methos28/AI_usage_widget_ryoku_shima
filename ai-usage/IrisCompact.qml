@@ -10,7 +10,9 @@ pragma ComponentBehavior: Bound
 // Every card is an IrisSurface on Shima tokens; the data is the shared usage
 // cache (~/.cache/<tool>-usage.json) and nothing here writes usage anywhere.
 import QtQuick
+import QtQuick.Effects
 import Quickshell
+import Quickshell.Widgets
 import inir
 import inir.services
 import inir.modules.common
@@ -363,7 +365,88 @@ Item {
 
     // ─── cards ───────────────────────────────────────────────────────────
 
-    component AiLimits: IrisSurface {
+    // A card is a pane of glass: the blurred wallpaper behind the island,
+    // clipped to the card radius, under a thin tint and a hairline. The tint
+    // keeps the text off the wallpaper's own light and dark patches.
+    //
+    // The wallpaper image is screen-fixed and its blur is a layer of the image
+    // itself, never of the card: a card-sized layer is re-made whenever the
+    // page resizes, and the frame it spent rebuilding read as the card going
+    // dark. The clip is a ClippingRectangle, which re-masks without a layer.
+    component GlassPane: ClippingRectangle {
+        id: pane
+        radius: root.radius
+        // A transparent ClippingRectangle stops painting its children (see
+        // IrisIsland's chassis); this is the same near-transparent body clip.
+        color: IrisStyle.bodyClip
+        readonly property var screen: pane.QsWindow.window?.screen ?? root.targetScreen
+        readonly property point at: {
+            // mapToItem does not track its ancestors as binding dependencies, so
+            // a layout that moves the page (opening, a card growing, a new
+            // workspace) left this point at the one it had before the move: the
+            // glass sampled the wallpaper near the screen's top edge and read as
+            // a dark card until some unrelated resize re-evaluated it. Read every
+            // ancestor's position to keep the binding honest.
+            let walk = pane
+            while (walk) {
+                void (walk.x + walk.y)
+                walk = walk.parent
+            }
+            void (pane.width + pane.height)
+            return pane.mapToItem(null, 0, 0)
+        }
+
+        Image {
+            id: wallpaper
+            x: -pane.at.x
+            y: -pane.at.y
+            width: pane.screen?.width ?? 1920
+            height: pane.screen?.height ?? 1080
+            source: WallpaperListener.wallpaperUrlForScreen(pane.screen)
+            fillMode: Image.PreserveAspectCrop
+            cache: true
+            asynchronous: true
+            sourceSize.width: width
+            sourceSize.height: height
+            visible: status === Image.Ready
+            layer.enabled: visible
+            layer.effect: MultiEffect {
+                source: wallpaper
+                anchors.fill: source
+                blurEnabled: true
+                blurMax: 64
+                blur: 1
+                saturation: 0.08
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: ColorUtils.applyAlpha(IrisStyle.surfaceOpaque, 0.38)
+        }
+    }
+
+    component GlassCard: IrisSurface {
+        id: card
+        quiet: true
+        radius: root.radius
+
+        GlassPane {
+            anchors.fill: parent
+            z: -1
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: card.radius
+            z: -1
+            color: "transparent"
+            border.width: 1
+            border.color: ColorUtils.applyAlpha(IrisStyle.text, 0.10)
+        }
+    }
+
+    component AiLimits: GlassCard {
         id: card
         radius: root.radius
         implicitHeight: body.implicitHeight + 2 * root.pad
@@ -448,7 +531,7 @@ Item {
         }
     }
 
-    component AiNow: IrisSurface {
+    component AiNow: GlassCard {
         id: card
         radius: root.radius
         implicitHeight: body.implicitHeight + 2 * root.pad
@@ -556,7 +639,7 @@ Item {
         }
     }
 
-    component AiSpend: IrisSurface {
+    component AiSpend: GlassCard {
         id: card
         radius: root.radius
         implicitHeight: body.implicitHeight + 2 * root.pad
@@ -686,7 +769,7 @@ Item {
         }
     }
 
-    component AiTrend: IrisSurface {
+    component AiTrend: GlassCard {
         id: card
         property bool expanded: false
         radius: root.radius
@@ -841,7 +924,7 @@ Item {
         }
     }
 
-    component AiModels: IrisSurface {
+    component AiModels: GlassCard {
         id: card
         property bool expanded: false
         radius: root.radius
@@ -896,7 +979,7 @@ Item {
         }
     }
 
-    component AiActivity: IrisSurface {
+    component AiActivity: GlassCard {
         id: card
         property bool expanded: false
         radius: root.radius
@@ -1194,7 +1277,7 @@ Item {
         }
     }
 
-    component AiEmpty: IrisSurface {
+    component AiEmpty: GlassCard {
         id: card
         radius: root.radius
         implicitHeight: body.implicitHeight + 2 * root.pad

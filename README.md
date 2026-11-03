@@ -171,6 +171,10 @@ side by side.
 
 ## What each card shows
 
+Every card is a pane of frosted glass: the wallpaper behind the Island, blurred
+and clipped to the card, under a thin tint and hairline. Nothing else on the
+page changes material.
+
 | Card | What it tells you |
 |---|---|
 | **Now** | The agent, when it last wrote, and up to two running sessions: title, how long it has run, its tokens. The dot is green and breathes while a session runs. |
