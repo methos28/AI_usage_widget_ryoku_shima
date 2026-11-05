@@ -77,6 +77,11 @@ The stock Ryoku collector keeps seven days of OpenCode history. This module's
 Trend, Models and Now cards want more: daily history, per-period model totals,
 live sessions and recorded cost. That is what `opencode-usage-v2` adds.
 
+History comes from OpenCode's per-message store, so a session that runs across
+days is credited to each day it actually ran. Session totals true up the
+history when a message row is missing, and the collector never attributes a
+session to a database update that was only a migration touch.
+
 ```bash
 mkdir -p ~/.local/bin
 cp ~/Downloads/opencode-ryoku-shima/collector/opencode-usage-v2 ~/.local/bin/

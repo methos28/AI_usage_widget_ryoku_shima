@@ -6,13 +6,19 @@ session store used by `opencode serve` / OpenChamber:
 
   - legacy: storage/message/*/*.json, storage/session/message/*/*.json,
     sqlite `message(data)` + `part(step-finish)` tables (per-message tokens)
-  - v2: sqlite `session_v2` aggregate columns (tokens_input/output/reasoning,
-    tokens_cache_read/write, cost, model JSON, time_updated)
+  - v2: sqlite `session_message` rows (assistant messages and compaction
+    calls) with their own tokens, model, cost and `time.created`
+  - v2 fallback: sqlite `session_v2` aggregate columns for a session with no
+    per-message rows, keyed by time_updated
 
-v2 sessions with zero legacy per-message rows (all OpenChamber sessions since
-~Oct 6, parts stopped Oct 5) are added as single aggregate records keyed by
-time_updated. Sessions already covered by legacy rows are skipped to avoid
-double counting (the 23 legacy IDs exist in both stores after migration.v1-v2).
+The v2 message store is the accurate history: every assistant message and
+compaction call carries its own timestamp, so a session that spans days lands
+on the days it ran. Session aggregates still true up each session's totals when
+the message store misses a row (a retried or pruned request); that difference
+is spread across the session's own messages in proportion to their tokens.
+Before this, one aggregate per session keyed by time_updated dumped a whole
+multi-day session, and any bulk migration that touched old sessions, onto the
+day of that touch.
 
 Lives in ~/.local/bin so `ryoku update` (which re-lays /usr/bin and
 ~/.config/quickshell) never clobbers it. Wired via
@@ -185,14 +191,124 @@ def load_sqlite_messages(cutoff_ms: int) -> list[dict]:
     return out
 
 
-def load_session_v2_aggregates(cutoff_ms: int, skip_session_ids: set) -> list[dict]:
-    """Per-session aggregates for v2-only sessions (no legacy per-message rows).
+def parse_v2_message(kind: str, data: dict, session_id: str, fallback_ms: int = 0) -> dict | None:
+    """One usage row from the v2 session_message store.
 
-    New server versions (used by OpenChamber's `opencode serve`) stopped
-    writing `part(step-finish)` rows after ~Oct 5, but keep per-session totals
-    in session_v2.tokens_*. Attribute each session to its time_updated; coarse
-    for multi-day sessions but far better than dropping them entirely.
+    Assistant messages and compaction calls both carry `tokens` and `model`;
+    compaction is a real model call and session_v2 counts it, so it belongs in
+    the history too.
     """
+    if kind not in ("assistant", "compaction"):
+        return None
+    model = data.get("model") or {}
+    model_id = str(model.get("id") or model.get("modelID") or "")
+    if not model_id:
+        return None
+    provider_id = str(model.get("providerID") or "")
+    tokens = data.get("tokens") or {}
+    cache = tokens.get("cache") or {}
+    inp = as_int(tokens.get("input"))
+    output = as_int(tokens.get("output"))
+    reasoning = as_int(tokens.get("reasoning"))
+    cache_read = as_int(cache.get("read"))
+    cache_write = as_int(cache.get("write"))
+    stamp = data.get("time") or {}
+    moment = as_int(stamp.get("completed") or stamp.get("created")) if isinstance(stamp, dict) else 0
+    total = inp + output + reasoning + cache_write
+    return {
+        "session_id": session_id,
+        "model_id": model_id,
+        "provider_id": provider_id,
+        "input": inp,
+        "output": output,
+        "reasoning": reasoning,
+        "cache_read": cache_read,
+        "cache_write": cache_write,
+        "total": total,
+        "total_with_cache_read": total + cache_read,
+        "cost": as_float(data.get("cost")),
+        "time": moment or as_int(fallback_ms),
+    }
+
+
+def load_session_messages(cutoff_ms: int) -> list[dict]:
+    """Per-message usage from the v2 store, oldest first.
+
+    Unlike the legacy `message` table, this one keeps every assistant message
+    of every v2 session, including OpenChamber's `opencode serve` sessions.
+    """
+    if not DB_FILE.exists():
+        return []
+    try:
+        con = _connect_ro()
+    except sqlite3.Error:
+        return []
+    out: list[dict] = []
+    try:
+        with con:
+            rows = con.execute(
+                "select session_id, type, time_created, data "
+                "from session_message "
+                "where type in ('assistant', 'compaction') and time_created >= ? "
+                "order by time_created asc",
+                (cutoff_ms,),
+            ).fetchall()
+        for sid, kind, row_time, raw in rows:
+            try:
+                data = json.loads(raw or "{}")
+            except ValueError:
+                continue
+            rec = parse_v2_message(str(kind), data, str(sid or ""), as_int(row_time))
+            if rec is not None:
+                out.append(rec)
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+    return out
+
+
+def balance_session(records: list[dict], agg: dict) -> None:
+    """Spread a session's aggregate residual over its messages.
+
+    The aggregate is authoritative for the session total; the message store can
+    miss a retried or pruned request. Scale every component, then put the
+    rounding difference on the last record so the totals match exactly.
+    """
+    fields = ("input", "output", "reasoning", "cache_read", "cache_write")
+    for field in fields:
+        base = sum(int(row.get(field, 0)) for row in records)
+        target = as_int(agg.get(field))
+        if base <= 0:
+            if target > 0:
+                records[-1][field] = int(records[-1].get(field, 0)) + target
+            continue
+        factor = target / float(base)
+        for row in records:
+            row[field] = int(round(int(row.get(field, 0)) * factor))
+        delta = target - sum(int(row[field]) for row in records)
+        records[-1][field] = int(records[-1][field]) + delta
+    base_cost = sum(float(row.get("cost", 0.0)) for row in records)
+    target_cost = as_float(agg.get("cost"))
+    if base_cost > 0:
+        factor = target_cost / base_cost
+        for row in records:
+            row["cost"] = float(row.get("cost", 0.0)) * factor
+    elif target_cost > 0:
+        records[-1]["cost"] = target_cost
+    for row in records:
+        row["total"] = int(row["input"]) + int(row["output"]) + int(row["reasoning"]) + int(row["cache_write"])
+        row["total_with_cache_read"] = row["total"] + int(row["cache_read"])
+
+
+def load_session_v2_aggregates(cutoff_ms: int, skip_session_ids: set | None = None) -> list[dict]:
+    """Per-session totals from session_v2.
+
+    Used for a session with no message rows at all, and to true up a session
+    whose message rows are missing a request. `time_updated` is only the
+    record's time when there are no messages; it can also be a migration touch.
+    """
+    skip_session_ids = skip_session_ids or set()
     if not DB_FILE.exists():
         return []
     try:
@@ -293,11 +409,26 @@ def load_sessions(limit: int = 10) -> list[dict]:
 def load_messages(horizon_s: float = WINDOW_HORIZON_S) -> list[dict]:
     cutoff_s = time.time() - horizon_s
     cutoff_ms = int(cutoff_s * 1000)
-    msgs = load_fs_messages(cutoff_s)
+    msgs = load_session_messages(cutoff_ms)
+    per_message_v2 = bool(msgs)
+    if not msgs:
+        msgs = load_fs_messages(cutoff_s)
     if not msgs:
         msgs = load_sqlite_messages(cutoff_ms)
     covered = {str(m.get("session_id") or "") for m in msgs if m.get("session_id")}
-    msgs = msgs + load_session_v2_aggregates(cutoff_ms, covered)
+    aggs = load_session_v2_aggregates(cutoff_ms)
+    by_session: dict[str, list[dict]] = {}
+    for msg in msgs:
+        sid = str(msg.get("session_id") or "")
+        if sid:
+            by_session.setdefault(sid, []).append(msg)
+    for agg in aggs:
+        sid = str(agg.get("session_id") or "")
+        rows = by_session.get(sid) if per_message_v2 else None
+        if rows:
+            balance_session(rows, agg)
+        elif sid not in covered:
+            msgs.append(agg)
     msgs.sort(key=lambda m: m["time"])
     return msgs
 
@@ -530,9 +661,9 @@ def recent_days(msgs: list[dict], days: int = 7) -> list[dict]:
 def day_history(msgs: list[dict]) -> list[dict]:
     """One bucket per day from the first recorded message to today.
 
-    A session that spans days carries a single timestamp in the v2 store, so
-    its whole total lands on the day it was last written; that is the finest
-    grain OpenCode keeps for it, not a guess made here.
+    Every v2 assistant message and compaction call carries its own timestamp,
+    so a session that spans days is split across the days it actually ran.
+    Session aggregates only fill a session that has no message rows at all.
     """
     if not msgs:
         return []
