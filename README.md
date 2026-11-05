@@ -12,11 +12,18 @@ cache. No account and no network call.
 # Widget Preview
 Collapsed Sections : 
 
-<img width="608" height="645" alt="image" src="https://github.com/user-attachments/assets/1ae61688-438d-4215-8cc0-19f1b2544985" />
+<img width="562" height="327" alt="image" src="https://github.com/user-attachments/assets/cc38a1d2-f6d5-4b10-9ff4-e4620c8565d5" />
+<img width="564" height="407" alt="image" src="https://github.com/user-attachments/assets/dfc7847d-b8bb-48ef-b83d-96a54705622a" />
+
 
 Expanded Sections :
 
-<img width="578" height="901" alt="image" src="https://github.com/user-attachments/assets/6263e9c7-7b1c-4258-a6be-5c8bfc8ab406" />
+<img width="540" height="561" alt="image" src="https://github.com/user-attachments/assets/726ab955-8c0d-4fc4-adcd-d385c4dee80e" />
+<img width="579" height="555" alt="image" src="https://github.com/user-attachments/assets/7a313875-43b5-479b-9ed3-58e4ae2db1d6" />
+<img width="585" height="545" alt="image" src="https://github.com/user-attachments/assets/cff71940-eee9-427f-b301-e877856a8465" />
+
+
+
 
 
 ---
