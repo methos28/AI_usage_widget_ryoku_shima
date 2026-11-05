@@ -269,33 +269,31 @@ def load_session_messages(cutoff_ms: int) -> list[dict]:
 
 
 def balance_session(records: list[dict], agg: dict) -> None:
-    """Spread a session's aggregate residual over its messages.
+    """True a session up to its aggregate without touching old history.
 
-    The aggregate is authoritative for the session total; the message store can
-    miss a retried or pruned request. Scale every component, then put the
-    rounding difference on the last record so the totals match exactly.
+    The aggregate is authoritative for the session total, but it is a lifetime
+    tally: it cannot say which day a token landed on. Scaling every message to
+    match it rewrote past days on every run, so a session whose aggregate moved
+    (a lagging write, a compaction recount) made old days shrink and grow while
+    it was still in use.
+
+    Instead, only the positive residual (tokens the message store is missing)
+    is added, once, to the session's newest message. Existing records are never
+    reduced or rescaled, so a day that has been counted keeps its tokens.
     """
+    if not records:
+        return
+    latest = max(range(len(records)), key=lambda index: records[index].get("time", 0))
     fields = ("input", "output", "reasoning", "cache_read", "cache_write")
     for field in fields:
         base = sum(int(row.get(field, 0)) for row in records)
         target = as_int(agg.get(field))
-        if base <= 0:
-            if target > 0:
-                records[-1][field] = int(records[-1].get(field, 0)) + target
-            continue
-        factor = target / float(base)
-        for row in records:
-            row[field] = int(round(int(row.get(field, 0)) * factor))
-        delta = target - sum(int(row[field]) for row in records)
-        records[-1][field] = int(records[-1][field]) + delta
+        if target > base:
+            records[latest][field] = int(records[latest].get(field, 0)) + (target - base)
     base_cost = sum(float(row.get("cost", 0.0)) for row in records)
     target_cost = as_float(agg.get("cost"))
-    if base_cost > 0:
-        factor = target_cost / base_cost
-        for row in records:
-            row["cost"] = float(row.get("cost", 0.0)) * factor
-    elif target_cost > 0:
-        records[-1]["cost"] = target_cost
+    if target_cost > base_cost:
+        records[latest]["cost"] = float(records[latest].get("cost", 0.0)) + (target_cost - base_cost)
     for row in records:
         row["total"] = int(row["input"]) + int(row["output"]) + int(row["reasoning"]) + int(row["cache_write"])
         row["total_with_cache_read"] = row["total"] + int(row["cache_read"])
@@ -692,6 +690,79 @@ def day_history(msgs: list[dict]) -> list[dict]:
     return out
 
 
+def merge_day_history(days: list[dict], previous: dict) -> list[dict]:
+    """Keep published day totals monotonic.
+
+    A session aggregate can be rewritten (compaction recount, migration) or a
+    residual can move to a newer message. Either way, a day that was already
+    shown must not lose tokens: history is append-only. Merge the new buckets
+    with the previous cache by date, keeping the larger value for each field.
+    """
+    if not isinstance(previous, dict):
+        return days
+    old_days = previous.get("_days")
+    if previous.get("_source") != "storage+v2" or not isinstance(old_days, list):
+        return days
+    by_date: dict[str, dict] = {str(d["date"]): d for d in days}
+    for old in old_days:
+        date = str(old.get("date") or "")
+        if not date:
+            continue
+        current = by_date.get(date)
+        if current is None:
+            by_date[date] = {
+                "date": date,
+                "tokens": as_int(old.get("tokens")),
+                "cacheRead": as_int(old.get("cacheRead")),
+            }
+        else:
+            current["tokens"] = max(as_int(current.get("tokens")),
+                                    as_int(old.get("tokens")))
+            current["cacheRead"] = max(as_int(current.get("cacheRead")),
+                                       as_int(old.get("cacheRead")))
+    return sorted(by_date.values(), key=lambda day: str(day["date"]))
+
+
+def merge_hour_history(hours: list[dict], previous: dict) -> list[dict]:
+    """Same append-only rule for the rolling 48-hour buckets.
+
+    Only buckets that are still inside the new window are merged, so the list
+    keeps its 48-hour length; an hour already shown never loses tokens.
+    """
+    if not isinstance(previous, dict) or not hours:
+        return hours
+    old_hours = previous.get("_hours")
+    if previous.get("_source") != "storage+v2" or not isinstance(old_hours, list):
+        return hours
+    first = as_int(hours[0].get("start"))
+    last = as_int(hours[-1].get("start"))
+    by_start: dict[int, dict] = {as_int(hour.get("start")): hour for hour in hours}
+    for old in old_hours:
+        start = as_int(old.get("start"))
+        if start < first or start > last:
+            continue
+        current = by_start.get(start)
+        if current is None:
+            by_start[start] = {
+                "start": start,
+                "tokens": as_int(old.get("tokens")),
+                "cacheRead": as_int(old.get("cacheRead")),
+            }
+        else:
+            current["tokens"] = max(as_int(current.get("tokens")),
+                                    as_int(old.get("tokens")))
+            current["cacheRead"] = max(as_int(current.get("cacheRead")),
+                                       as_int(old.get("cacheRead")))
+    return sorted(by_start.values(), key=lambda hour: as_int(hour["start"]))
+
+
+def previous_cache() -> dict:
+    try:
+        return json.loads(CACHE_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
 def main() -> None:
     if not STORAGE_DIR.is_dir() and not DB_FILE.exists():
         stale_last()
@@ -720,6 +791,10 @@ def main() -> None:
     model = newest_model(msgs)
     models = model_rows(msgs, today_ms)
     recent_days_list = recent_days(msgs)
+    # Read the published history before writing so a day never decreases.
+    published = previous_cache()
+    days = merge_day_history(day_history(msgs_all), published)
+    hours = merge_hour_history(hour_history(msgs_all), published)
 
     out = {
         "5h-utilization": f"{pct(tok_5h, LIMIT_5H):.4f}",
@@ -739,8 +814,8 @@ def main() -> None:
         "_today_tokens": tok_today,
         "_today_tokens_with_cache_read": tok_today_with_cache,
         "_recent_days": recent_days_list,
-        "_days": day_history(msgs_all),
-        "_hours": hour_history(msgs_all),
+        "_days": days,
+        "_hours": hours,
         "_sessions": load_sessions(),
         "_periods": {
             "today": period_stats(msgs_all, start_of_day(0)),
@@ -759,7 +834,11 @@ def main() -> None:
         "status": "allowed_warning" if tok_5h >= LIMIT_5H * 0.9 else "allowed",
     }
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(json.dumps(out))
+    # Atomic publish: readers (the island, the shell panel) must never see a
+    # half-written cache, and the next run merges the previous day history.
+    temp_file = CACHE_FILE.with_name(CACHE_FILE.name + ".tmp")
+    temp_file.write_text(json.dumps(out))
+    os.replace(temp_file, CACHE_FILE)
 
 
 if __name__ == "__main__":
