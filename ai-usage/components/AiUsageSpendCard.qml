@@ -18,11 +18,13 @@ AiUsageGlassCard {
     required property var usage
     id: card
     radius: page.radius
-    implicitHeight: body.implicitHeight + 2 * page.pad
+    // padY, not the plain card pad: the figures need more room above and below
+    // than a label does, and a taller Now card beside this one must never
+    // squeeze the amount towards the bottom edge.
+    implicitHeight: body.implicitHeight + 2 * body.padY
     // The primary row stretches this card to its neighbours' height. Centre the
-    // shared body instead of pinning it to the top, so a taller Now card beside
-    // it does not leave a blank strip under the figures. At the content-sized
-    // height the offset is exactly page.pad, so the card looks unchanged.
+    // shared body instead of pinning it to the top, so the spare height splits
+    // evenly above and below the figures.
     readonly property real spareHeight: card.height - card.implicitHeight
 
     AiUsageSpendBody {
@@ -33,6 +35,6 @@ AiUsageGlassCard {
         anchors.leftMargin: page.pad
         anchors.rightMargin: page.pad
         height: implicitHeight
-        y: page.pad + Math.round(Math.max(0, card.spareHeight) / 2)
+        y: body.padY + Math.round(Math.max(0, card.spareHeight) / 2)
     }
 }

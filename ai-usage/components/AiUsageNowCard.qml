@@ -16,19 +16,29 @@ AiUsageGlassCard {
     required property var usage
     id: card
     radius: page.radius
-    readonly property int spendGap: Math.round(6 * IrisStyle.density)
+    // One gap for the block: between the hairline and the Spending title, and
+    // the least air a session keeps above the hairline.
+    readonly property int spendGap: Math.round(10 * IrisStyle.density)
+    // What the Spending block owns at the bottom of the card: the hairline, a
+    // clear gap under it, the figures, and padY of card below the amount.
     readonly property int spendBlockHeight: page.integratedSpend
-        ? 1 + card.spendGap + spendBody.implicitHeight : 0
-    implicitHeight: body.implicitHeight + 2 * page.pad
-        + (page.integratedSpend ? card.spendBlockHeight + card.spendGap : 0)
+        ? 1 + card.spendGap + spendBody.implicitHeight + spendBody.padY : 0
+    // Content-sized, two rules decide the height. The sessions keep at least
+    // spendGap above and below, and the block takes the bottom half so the
+    // hairline lands on the card's middle when there is one session (2 * the
+    // block is exactly two equal halves). A second session grows the sessions
+    // half past that, the block stays put at the bottom and the hairline drops
+    // with it. Both rules come from one number each, so nothing is pinned to an
+    // edge and no branch can put the sessions over the hairline.
+    implicitHeight: page.integratedSpend
+        ? Math.max(2 * card.spendBlockHeight,
+                   body.implicitHeight + 2 * card.spendGap + card.spendBlockHeight)
+        : body.implicitHeight + 2 * page.pad
     // The primary row sizes every card to the tallest one, so this body can
-    // have spare height. Centre it in the room it owns. When Spending shares
-    // the card that room ends at the hairline, so the block keeps the bottom
-    // edge and the spare splits above the sessions and above the hairline
-    // instead of pooling in one gap. Content-sized, the plain card resolves to
-    // page.pad again; the integrated card puts half of spendGap above the
-    // sessions and half above the hairline, so the gaps around the content
-    // match and the hairline stays the same distance from the Spending body.
+    // have spare height. Centre it in the room it owns, which ends at the
+    // hairline when Spending shares the card. The block keeps the bottom edge
+    // and the spare splits above the sessions and above the hairline, so the
+    // content never drifts towards either edge.
     readonly property int bodyTop: Math.round(Math.max(0,
         card.height - body.implicitHeight
         - (page.integratedSpend ? card.spendBlockHeight : 0)) / 2)
@@ -137,8 +147,8 @@ AiUsageGlassCard {
 
     // Spending uses the empty room under the sessions instead of taking a row
     // of its own, and it keeps the Spending card's own layout so the number
-    // reads the same on both agents. It sits on the card's bottom edge, so a
-    // taller Limits card next to it does not leave a blank strip.
+    // reads the same on both agents. It sits on the card's bottom edge, but its
+    // own pad keeps the amount off that edge.
     Item {
         id: spendBlock
         visible: page.integratedSpend
@@ -164,6 +174,7 @@ AiUsageGlassCard {
             anchors.top: spendHairline.bottom
             anchors.bottom: parent.bottom
             anchors.topMargin: card.spendGap
+            anchors.bottomMargin: spendBody.padY
         }
     }
 }

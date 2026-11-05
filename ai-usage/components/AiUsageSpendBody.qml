@@ -18,6 +18,11 @@ import inir.modules.iris.components
 Item {
     required property var page
     id: body
+    // Vertical breathing room the figures want around them. The standalone
+    // Spend card pads its box with it, and the block inside Now keeps its
+    // bottom edge off the card with it, so the figures read the same in both
+    // places instead of the amount sitting on a card edge.
+    readonly property int padY: Math.round(14 * IrisStyle.density)
     implicitHeight: column.implicitHeight
 
     Column {
