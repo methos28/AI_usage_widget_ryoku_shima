@@ -98,6 +98,10 @@ Item {
     }
 
     Component.onCompleted: cacheFile.reload()
+    onToolChanged: {
+        root.empty()
+        cacheFile.reload()
+    }
 
     function empty() {
         root.has = false
@@ -187,13 +191,14 @@ Item {
                     history.push({
                         date: String(day?.date ?? ""),
                         tokens: Number(day?.tokens) || 0,
-                        cacheRead: Number(day?.cacheRead) || 0
+                        cacheRead: Number(day?.cacheRead) || 0,
+                        cost: Number(day?.cost) || 0
                     })
                 }
                 root.days = history
             } else {
                 // Older collectors carry only the seven-day window.
-                root.days = root.recent.map(day => ({ date: String(day?.date ?? ""), tokens: Number(day?.tokens) || 0 }))
+                root.days = root.recent.map(day => ({ date: String(day?.date ?? ""), tokens: Number(day?.tokens) || 0, cacheRead: 0, cost: 0 }))
             }
             const sessionRows = []
             for (const s of (data._sessions instanceof Array ? data._sessions : [])) {

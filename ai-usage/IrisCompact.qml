@@ -49,6 +49,11 @@ Item {
         { value: "30", label: "Last 30 days" },
         { value: "all", label: "All time" }
     ]
+    readonly property var agentOptions: [
+        { value: "opencode", label: "OpenCode" },
+        { value: "claude", label: "Claude" },
+        { value: "codex", label: "Codex" }
+    ]
     readonly property string periodKey: {
         const stored = String(CustomWidgets.getConfigValue("ai-usage", "period", "30"))
         return ["today", "24h", "7", "30", "all"].includes(stored) ? stored : "30"
@@ -83,7 +88,19 @@ Item {
         ? Number(root.activePeriod.cacheRate) : 0
     readonly property real periodCost: root.activePeriod
         ? Number(root.activePeriod.cost) : 0
-    readonly property bool hasSpend: root.periodCost > 0.0005
+    readonly property bool hasSpend: root.periodCost > 0.0005 || root.hasCostHistory
+
+    // This month's spend from the day buckets (cost is per assistant turn).
+    readonly property var monthly: {
+        const key = Qt.formatDate(new Date(), "yyyy-MM")
+        let total = 0
+        for (const day of usage.days) {
+            if (String(day?.date ?? "").slice(0, 7) === key)
+                total += Number(day?.cost ?? 0)
+        }
+        return ({ current: total, label: root.monthLabel(key) })
+    }
+    readonly property bool hasCostHistory: usage.days.some(day => Number(day?.cost ?? 0) > 0)
     readonly property bool hasPlan: usage.hasPlan
 
     // Layout 1 was the single long card, layout 2 the fixed 60/90/180 control.
@@ -193,6 +210,10 @@ Item {
     function money(value: real): string {
         return "$" + Number(value || 0).toFixed(2)
     }
+    function monthLabel(key: string): string {
+        const parsed = new Date(String(key) + "-01T12:00:00")
+        return isNaN(parsed.getTime()) ? String(key) : Qt.formatDate(parsed, "MMM")
+    }
     function elapsedLabel(startMs: double): string {
         usage.tick   // a binding that calls this re-evaluates when the ticker moves
         const mins = Math.max(0, Math.floor((Date.now() - Number(startMs || 0)) / 60000))
@@ -214,6 +235,7 @@ Item {
 
     // The period menu sits above the grid so no card clips it.
     function openPeriodMenu(trigger: Item): void {
+        agentMenu.open = false
         const point = trigger.mapToItem(root, 0, trigger.height)
         periodMenu.x = Math.max(0, Math.min(root.cardWidth - periodMenu.width,
             Math.round(point.x + (trigger.width - periodMenu.width) / 2)))
@@ -222,10 +244,79 @@ Item {
         periodMenu.open = true
     }
 
+    // The agent list drops straight out of its chip, near the card's top.
+    function openAgentMenu(): void {
+        periodMenu.open = false
+        const point = agentChip.mapToItem(root, 0, agentChip.height)
+        agentMenu.x = Math.max(0, Math.min(root.cardWidth - agentMenu.width, Math.round(point.x)))
+        agentMenu.y = Math.round(point.y + 4 * IrisStyle.density)
+        agentMenu.open = true
+    }
+
     Column {
         id: grid
         width: root.cardWidth
         spacing: root.gap
+
+        // The agent list opens from this chip: one cache is read at a time,
+        // and a pick writes the same `tool` key Settings writes.
+        Item {
+            id: agentBar
+            width: parent.width
+            height: Math.round(28 * IrisStyle.density)
+
+            Rectangle {
+                id: agentChip
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: agentChipRow.implicitWidth + Math.round(20 * IrisStyle.density)
+                height: Math.round(28 * IrisStyle.density)
+                radius: height / 2
+                color: agentMenu.open ? IrisStyle.fillHover : IrisStyle.fillQuiet
+                border.width: 1
+                border.color: ColorUtils.applyAlpha(IrisStyle.text, 0.10)
+
+                Row {
+                    id: agentChipRow
+                    anchors.centerIn: parent
+                    spacing: Math.round(5 * IrisStyle.density)
+                    IrisText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.toolLabel
+                        font.pixelSize: Math.round(12 * IrisStyle.density)
+                        font.weight: IrisStyle.weight(Font.DemiBold)
+                    }
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "expand_more"
+                        iconSize: Math.round(16 * IrisStyle.density)
+                        color: IrisStyle.muted
+                        rotation: agentMenu.open ? 180 : 0
+                        Behavior on rotation {
+                            NumberAnimation {
+                                duration: IrisStyle.duration(140)
+                                easing.type: Easing.BezierSpline
+                            }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: agentMenu.open ? agentMenu.open = false : root.openAgentMenu()
+                }
+            }
+
+            IrisText {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                role: IrisText.Eyebrow
+                color: IrisStyle.muted
+                text: "AI USAGE"
+            }
+        }
 
         Row {
             id: primaryRow
@@ -285,6 +376,84 @@ Item {
             width: parent.width
             height: implicitHeight
             visible: !usage.has
+        }
+    }
+
+    // ── agent menu ───────────────────────────────────────────────────────
+    MouseArea {
+        anchors.fill: parent
+        visible: agentMenu.open
+        z: 88
+        onClicked: agentMenu.open = false
+    }
+    IrisSurface {
+        id: agentMenu
+        property bool open: false
+        visible: open
+        z: 92
+        raised: true
+        outlined: true
+        width: Math.round(172 * IrisStyle.density)
+        height: agentColumn.implicitHeight + 2 * Math.round(6 * IrisStyle.density)
+        radius: IrisStyle.radiusTile
+        Rectangle {
+            anchors.fill: parent
+            radius: agentMenu.radius
+            color: "transparent"
+            border.width: 1
+            border.color: IrisStyle.borderStrong
+        }
+        Column {
+            id: agentColumn
+            x: Math.round(6 * IrisStyle.density)
+            y: Math.round(6 * IrisStyle.density)
+            width: agentMenu.width - 2 * Math.round(6 * IrisStyle.density)
+            Repeater {
+                model: root.agentOptions
+                Item {
+                    id: agentRow
+                    required property var modelData
+                    width: agentColumn.width
+                    height: Math.round(30 * IrisStyle.density)
+                    readonly property bool current: String(modelData?.value ?? "") === root.tool
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: IrisStyle.radiusSmall
+                        color: agentRow.current || agentArea.containsMouse
+                            ? IrisStyle.fillHover : "transparent"
+                    }
+                    IrisText {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Math.round(9 * IrisStyle.density)
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: String(modelData?.label ?? "")
+                        font.pixelSize: IrisStyle.typeLabel
+                        font.weight: IrisStyle.weight(agentRow.current ? Font.DemiBold : Font.Medium)
+                        color: agentRow.current ? IrisStyle.accent : IrisStyle.text
+                    }
+                    MaterialSymbol {
+                        anchors.right: parent.right
+                        anchors.rightMargin: Math.round(9 * IrisStyle.density)
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: agentRow.current
+                        text: "check"
+                        iconSize: Math.round(14 * IrisStyle.density)
+                        color: IrisStyle.accent
+                    }
+                    MouseArea {
+                        id: agentArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            CustomWidgets.setConfigValue("ai-usage", "tool",
+                                String(agentRow.modelData?.value ?? "opencode"))
+                            agentMenu.open = false
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -668,7 +837,7 @@ Item {
                     role: IrisText.Meta
                     color: IrisStyle.muted
                     font.pixelSize: Math.round(10 * IrisStyle.density)
-                    text: "API value"
+                    text: root.hasCostHistory ? "This month" : "API value"
                 }
             }
 
@@ -683,7 +852,7 @@ Item {
                     IrisText {
                         id: spendMetric
                         role: IrisText.Metric
-                        text: root.money(root.periodCost)
+                        text: root.money(root.hasCostHistory ? root.monthly.current : root.periodCost)
                         font.pixelSize: Math.round(24 * IrisStyle.density)
                     }
                     IrisText {
@@ -691,31 +860,20 @@ Item {
                         role: IrisText.Meta
                         color: IrisStyle.muted
                         font.pixelSize: Math.round(10 * IrisStyle.density)
-                        text: root.periodNoun
+                        text: root.hasCostHistory
+                            ? root.monthly.label
+                            : root.periodNoun
                     }
-                }
-                IrisText {
-                    visible: card.width > Math.round(360 * IrisStyle.density)
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    role: IrisText.Eyebrow
-                    color: IrisStyle.muted
-                    font.pixelSize: Math.round(10 * IrisStyle.density)
-                    elide: Text.ElideRight
-                    text: usage.kmg(root.periodTokens) + " tokens · "
-                        + Math.round(root.periodCacheRate * 100) + "% from cache"
                 }
             }
 
             IrisText {
                 width: parent.width
-                visible: card.width <= Math.round(360 * IrisStyle.density)
-                role: IrisText.Eyebrow
+                visible: !root.hasCostHistory
+                role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(10 * IrisStyle.density)
-                elide: Text.ElideRight
-                text: usage.kmg(root.periodTokens) + " tokens · "
-                    + Math.round(root.periodCacheRate * 100) + "% from cache"
+                text: "No cost recorded in this cache."
             }
         }
     }

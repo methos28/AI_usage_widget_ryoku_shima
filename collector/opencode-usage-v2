@@ -673,12 +673,14 @@ def day_history(msgs: list[dict]) -> list[dict]:
     start_ms = int(datetime.combine(start, datetime.min.time()).astimezone().timestamp() * 1000)
     by_day: dict[str, int] = {}
     cache_by_day: dict[str, int] = {}
+    cost_by_day: dict[str, float] = {}
     for msg in msgs:
         if msg["time"] < start_ms:
             continue
         key = datetime.fromtimestamp(msg["time"] / 1000).strftime("%Y-%m-%d")
         by_day[key] = by_day.get(key, 0) + msg["total"]
         cache_by_day[key] = cache_by_day.get(key, 0) + msg["cache_read"]
+        cost_by_day[key] = cost_by_day.get(key, 0.0) + float(msg.get("cost", 0.0))
     out = []
     for i in range(span - 1, -1, -1):
         key = (today - timedelta(days=i)).strftime("%Y-%m-%d")
@@ -686,6 +688,7 @@ def day_history(msgs: list[dict]) -> list[dict]:
             "date": key,
             "tokens": int(by_day.get(key, 0)),
             "cacheRead": int(cache_by_day.get(key, 0)),
+            "cost": round(cost_by_day.get(key, 0.0), 6),
         })
     return out
 
@@ -714,12 +717,15 @@ def merge_day_history(days: list[dict], previous: dict) -> list[dict]:
                 "date": date,
                 "tokens": as_int(old.get("tokens")),
                 "cacheRead": as_int(old.get("cacheRead")),
+                "cost": as_float(old.get("cost")),
             }
         else:
             current["tokens"] = max(as_int(current.get("tokens")),
                                     as_int(old.get("tokens")))
             current["cacheRead"] = max(as_int(current.get("cacheRead")),
                                        as_int(old.get("cacheRead")))
+            current["cost"] = max(as_float(current.get("cost")),
+                                  as_float(old.get("cost")))
     return sorted(by_date.values(), key=lambda day: str(day["date"]))
 
 
