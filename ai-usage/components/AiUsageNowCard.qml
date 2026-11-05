@@ -89,7 +89,7 @@ AiUsageGlassCard {
                 }
                 IrisText {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: page.toolLabel
+                    text: "Sessions"
                     font.pixelSize: Math.round(12 * IrisStyle.density)
                     font.weight: IrisStyle.weight(Font.DemiBold)
                 }

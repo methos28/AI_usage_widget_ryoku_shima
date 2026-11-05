@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.3
+
+- Removed the stale-data line from the Limits card.
+- Renamed the sessions card header to Sessions; sessions stay capped at two.
+- Agent switches no longer flash the empty state and its refresh button while
+  the new cache loads.
+
 ## 1.1.2
 
 - The agent menu lists only agents with a usage cache on this machine.

@@ -437,7 +437,9 @@ Item {
                 usage: usageModel
             width: parent.width
             height: implicitHeight
-            visible: !usageModel.has
+            // Not while an agent switch is still loading: the old card holds the
+            // frame, and a no-cache agent shows this only once the load failed.
+            visible: !usageModel.has && !usageModel.switching
         }
     }
 

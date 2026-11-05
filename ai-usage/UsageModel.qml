@@ -13,6 +13,9 @@ Item {
 
     property string tool: "opencode"
     property bool refreshing: false
+    // True while a tool switch is waiting for the new cache. The old card stays
+    // on screen instead of flashing the empty state and its refresh button.
+    property bool switching: false
 
     // ── parsed state ──
     property bool has: false
@@ -99,7 +102,11 @@ Item {
 
     Component.onCompleted: cacheFile.reload()
     onToolChanged: {
-        root.empty()
+        // Keep the current numbers visible while the other cache loads. A
+        // switch whose cache is missing or unreadable ends in empty(), either
+        // from onLoadFailed or from switchTimer, so nothing stays stale.
+        root.switching = true
+        switchTimer.restart()
         cacheFile.reload()
     }
 
@@ -227,6 +234,10 @@ Item {
                 ? root.normalizePeriods(data._periods) : ({})
         } catch (e) {
             console.warn("[ai-usage] parse failed:", e)
+        } finally {
+            // The load has landed, as data or as a genuine empty cache.
+            switchTimer.stop()
+            root.switching = false
         }
     }
 
@@ -254,6 +265,8 @@ Item {
         onLoadFailed: {
             root._missing = true
             root._pendingText = ""
+            switchTimer.stop()
+            root.switching = false
             root.empty()
         }
     }
@@ -302,6 +315,19 @@ Item {
         id: staleTimer
         interval: 10000
         onTriggered: root.refreshing = false
+    }
+    // Last resort for a switch that never lands (an unreadable cache that is
+    // neither loaded nor failed): drop the old numbers after a beat instead of
+    // leaving them on the card for good.
+    Timer {
+        id: switchTimer
+        interval: 1200
+        onTriggered: {
+            if (!root.switching)
+                return
+            root.switching = false
+            root.empty()
+        }
     }
     // Relative times ("18 min. ago", a session's elapsed) have to move while
     // the card sits on the page; one ticker keeps them honest.
