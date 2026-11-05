@@ -2,8 +2,9 @@
 
 A dashboard for your coding agent, built into the Ryoku **Shima** Island
 Desktop page. It shows live OpenCode sessions, tokens for the period you pick,
-your top models and an activity heatmap. Everything is read from this machine.
-No account, no network call.
+your top models and an activity heatmap. OpenCode data is read from this
+machine; no account and no network call. Claude Code and Codex are also
+selectable and are read from their own local caches.
 
 **Install time:** about 10 minutes. **Skills needed:** copy and paste.
 
@@ -31,7 +32,10 @@ You need:
   centre: it must expand into a panel with page buttons.
 - **OpenCode** installed and used at least once, so its database exists at
   `~/.local/share/opencode/opencode.db`.
-- `git` and `gh` are not required; plain `git clone` over HTTPS is enough.
+- **Python 3.10 or newer** (`python3 --version`). The collector uses only the
+  standard library, so there is nothing to pip install.
+- **`git`** for the clone below. No GitHub account is needed; a ZIP download
+  works too.
 
 What is in this repository:
 
@@ -117,6 +121,11 @@ PY
 
 > Skipped this step? The module still loads, but Models, Spending and the
 > session list stay empty and the Trend only covers the last seven days.
+
+> The `ryoku-ai-usage.timer` unit ships with the optional `ryoku-rashin`
+> package. If `systemctl --user status ryoku-ai-usage.timer` says it does not
+> exist, install that package first; the drop-in above has no base unit without
+> it.
 
 ### 4. Reload the shell (30 seconds)
 
@@ -214,7 +223,7 @@ menu in the card; the rest are for edge cases and you rarely touch them.
 
 | Key | Default | What it does |
 |---|---|---|
-| `tool` | `opencode` | Which agent to read: `opencode` or `claude`. |
+| `tool` | `opencode` | Which agent to read: `opencode`, `claude` or `codex`. |
 | `moduleWidth` | `480` | Card width in px, clamped to the page body. |
 | `topModels` | `3` | Rows in the Models card. Maximum 3. |
 | `period` | `30` | `today`, `24h`, `7`, `30` or `all`. The menu writes it. |
@@ -234,7 +243,21 @@ The module also writes `layoutVersion` once, to migrate old installs. Leave it.
 - Freshness: the cache is rewritten every minute while the page is open and
   every five minutes by the systemd timer.
 
-`tool: claude` reads `~/.cache/claude-usage.json` instead, if that cache exists.
+### Other agents
+
+`tool: claude` reads `~/.cache/claude-usage.json`. `tool: codex` reads
+`~/.cache/codex-usage.json`. Both are written by the stock Ryoku collectors.
+
+Those collectors are lighter than the OpenCode one: they write the 5h/7d quota,
+today's tokens and a seven-day `_recent_days` list, but no long history, model
+rows or session list. So on Claude and Codex the Now, Models and Spending cards
+stay empty, and Trend and Activity cover seven days. The quota windows and
+today's total are accurate.
+
+`claude-usage` asks Anthropic's usage endpoint with the OAuth login Claude Code
+already stored; it sends no prompts. It cannot write a cache until Claude Code
+has been used and `~/.claude/.credentials.json` exists. Codex likewise needs
+`~/.codex` from a Codex run.
 
 ---
 
