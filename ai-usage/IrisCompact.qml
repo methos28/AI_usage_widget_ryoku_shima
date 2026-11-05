@@ -31,7 +31,29 @@ Item {
     // ── config (written by Shima Settings; read null-guarded here) ──
     readonly property string tool: CustomWidgets.getConfigValue("ai-usage", "tool", "opencode")
     readonly property var labels: ({ opencode: "OpenCode", claude: "Claude", codex: "Codex" })
-    readonly property string toolLabel: root.labels[root.tool] ?? root.tool
+
+    // ── agents this machine actually uses ──
+    // A usage cache exists only after that agent ran here, so the menu offers
+    // just the agents with a cache. The stored tool stays valid: if its cache
+    // disappears the page falls back to the first agent that still has one
+    // (OpenCode first) and writes that once.
+    readonly property var agentCatalog: [
+        { value: "opencode", label: "OpenCode", available: availability.opencode },
+        { value: "claude", label: "Claude", available: availability.claude },
+        { value: "codex", label: "Codex", available: availability.codex }
+    ]
+    readonly property var agentOptions: root.agentCatalog.filter(option => option.available)
+    readonly property bool hasAnyAgent: root.agentOptions.length > 0
+    readonly property bool toolAvailable: root.agentCatalog.some(
+        option => option.value === root.tool && option.available)
+    // One agent means nothing to switch to: the chip stays, the chevron goes.
+    readonly property bool agentSwitchable: availability.ready && root.agentOptions.length > 1
+    // No cache at all: keep the card and name OpenCode, like a fresh install,
+    // instead of an empty menu and a chip with nothing behind it.
+    readonly property string activeTool: availability.ready && !root.hasAnyAgent
+        ? "opencode" : root.tool
+    readonly property string toolLabel: root.labels[root.activeTool] ?? root.activeTool
+    property bool _fallbackWritten: false
 
     // The Island's Desktop page body is iris.bar.pageWidth minus its 20px
     // padding each side; a wider card would overflow the chassis and clip.
@@ -49,11 +71,6 @@ Item {
         { value: "7", label: "Last 7 days" },
         { value: "30", label: "Last 30 days" },
         { value: "all", label: "All time" }
-    ]
-    readonly property var agentOptions: [
-        { value: "opencode", label: "OpenCode" },
-        { value: "claude", label: "Claude" },
-        { value: "codex", label: "Codex" }
     ]
     readonly property string periodKey: {
         const stored = String(CustomWidgets.getConfigValue("ai-usage", "period", "30"))
@@ -75,9 +92,13 @@ Item {
     implicitWidth: root.cardWidth
     implicitHeight: grid.implicitHeight
 
+    AgentAvailability {
+        id: availability
+    }
+
     UsageModel {
         id: usageModel
-        tool: root.tool
+        tool: root.activeTool
     }
 
     // Everything on the page follows this one period.
@@ -103,9 +124,32 @@ Item {
     readonly property bool hasSpend: root.periodCost > 0.0005 || root.hasCostHistory
     // Claude and Codex are plan agents: Spending shares their Now card. OpenCode
     // keeps the standalone Spend card beside Now.
-    readonly property bool planAgent: root.tool !== "opencode"
+    readonly property bool planAgent: root.activeTool !== "opencode"
     readonly property bool integratedSpend: root.planAgent && root.hasCostHistory
     readonly property bool hasPlan: usageModel.hasPlan
+
+    // Keep the stored agent pointing at a cache that exists. One write per
+    // stale value; changing the tool re-arms it, so a later loss falls back
+    // again. Nothing to fall back to leaves the config alone.
+    function reconcileAgent(): void {
+        if (!availability.ready)
+            return
+        if (!root.agentSwitchable)
+            agentMenu.open = false
+        if (root.toolAvailable || !root.hasAnyAgent || root._fallbackWritten)
+            return
+        root._fallbackWritten = true
+        CustomWidgets.setConfigValue("ai-usage", "tool",
+            String(root.agentOptions[0]?.value ?? "opencode"))
+    }
+    onToolChanged: root._fallbackWritten = false
+    Connections {
+        target: availability
+        function onOpencodeChanged() { root.reconcileAgent() }
+        function onClaudeChanged() { root.reconcileAgent() }
+        function onCodexChanged() { root.reconcileAgent() }
+        function onReadyChanged() { root.reconcileAgent() }
+    }
 
     // Layout 1 was the single long card, layout 2 the fixed 60/90/180 control.
     // Run once, then the stored values are the person's own.
@@ -121,6 +165,7 @@ Item {
                 CustomWidgets.setConfigValue("ai-usage", "period", "30")
             CustomWidgets.setConfigValue("ai-usage", "layoutVersion", 3)
         }
+        root.reconcileAgent()
     }
 
     // ── trend buckets: hourly for Today / 24 hours, daily for the rest ──
@@ -250,6 +295,8 @@ Item {
 
     // The agent list drops straight out of its chip, near the card's top.
     function openAgentMenu(): void {
+        if (!root.agentSwitchable)
+            return
         periodMenu.open = false
         const point = agentChip.mapToItem(root, 0, agentChip.height)
         agentMenu.x = Math.max(0, Math.min(root.cardWidth - agentMenu.width, Math.round(point.x)))
@@ -263,7 +310,8 @@ Item {
         spacing: root.gap
 
         // The agent list opens from this chip: one cache is read at a time,
-        // and a pick writes the same `tool` key Settings writes.
+        // and a pick writes the same `tool` key Settings writes. With a single
+        // agent there is nothing to switch to, so the chip is just a label.
         Item {
             id: agentBar
             width: parent.width
@@ -292,6 +340,7 @@ Item {
                     }
                     MaterialSymbol {
                         anchors.verticalCenter: parent.verticalCenter
+                        visible: root.agentSwitchable
                         text: "expand_more"
                         iconSize: Math.round(16 * IrisStyle.density)
                         color: IrisStyle.muted
@@ -307,8 +356,9 @@ Item {
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: root.agentSwitchable
                     hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
+                    cursorShape: root.agentSwitchable ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked: agentMenu.open ? agentMenu.open = false : root.openAgentMenu()
                 }
             }

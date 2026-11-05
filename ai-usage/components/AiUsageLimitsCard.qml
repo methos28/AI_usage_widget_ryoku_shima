@@ -17,11 +17,17 @@ AiUsageGlassCard {
     id: card
     radius: page.radius
     implicitHeight: body.implicitHeight + 2 * page.pad
+    // The primary row stretches every card to the tallest one, so this card can
+    // be taller than its content. Centre the content in that spare height so
+    // the blank space splits above and below instead of collecting under the
+    // text. At the content-sized height the offset is exactly page.pad, so the
+    // natural card does not move.
+    readonly property real spareHeight: card.height - card.implicitHeight
 
     Column {
         id: body
         x: page.pad
-        y: page.pad
+        y: page.pad + Math.round(Math.max(0, card.spareHeight) / 2)
         width: card.width - 2 * page.pad
         spacing: page.step * 3
 
@@ -92,7 +98,7 @@ AiUsageGlassCard {
             role: IrisText.Meta
             font.pixelSize: Math.round(10 * IrisStyle.density)
             color: IrisStyle.muted
-            text: "Stale — tap ↻ to re-run the collector."
+            text: "Stale - tap ↻ to re-run the collector."
             wrapMode: Text.WordWrap
         }
     }

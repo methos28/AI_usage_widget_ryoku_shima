@@ -21,11 +21,22 @@ AiUsageGlassCard {
         ? 1 + card.spendGap + spendBody.implicitHeight : 0
     implicitHeight: body.implicitHeight + 2 * page.pad
         + (page.integratedSpend ? card.spendBlockHeight + card.spendGap : 0)
+    // The primary row sizes every card to the tallest one, so this body can
+    // have spare height. Centre it in the room it owns. When Spending shares
+    // the card that room ends at the hairline, so the block keeps the bottom
+    // edge and the spare splits above the sessions and above the hairline
+    // instead of pooling in one gap. Content-sized, the plain card resolves to
+    // page.pad again; the integrated card puts half of spendGap above the
+    // sessions and half above the hairline, so the gaps around the content
+    // match and the hairline stays the same distance from the Spending body.
+    readonly property int bodyTop: Math.round(Math.max(0,
+        card.height - body.implicitHeight
+        - (page.integratedSpend ? card.spendBlockHeight : 0)) / 2)
 
     Column {
         id: body
         x: page.pad
-        y: page.pad
+        y: card.bodyTop
         width: card.width - 2 * page.pad
         spacing: page.step * 2
 

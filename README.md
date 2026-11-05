@@ -240,6 +240,11 @@ menu in the card; the rest are for edge cases and you rarely touch them.
 
 The module also writes `layoutVersion` once, to migrate old installs. Leave it.
 
+The agent chip only offers agents that have a usage cache on this machine
+(`~/.cache/<tool>-usage.json`). An agent that was never used here is hidden. If
+the selected agent's cache disappears, the card falls back to the first
+available agent, OpenCode first.
+
 ---
 
 ## Where the numbers come from

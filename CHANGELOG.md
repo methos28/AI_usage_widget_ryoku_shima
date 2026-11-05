@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2
+
+- The agent menu lists only agents with a usage cache on this machine.
+- Card content is centred when a neighbouring card makes the row taller, so
+  text no longer sticks to the top.
+
 ## 1.1.1
 
 - Spending moved into the Now card for Claude and Codex, using the empty area and
