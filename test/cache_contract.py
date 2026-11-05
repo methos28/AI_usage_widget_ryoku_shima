@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """End-to-end check of the AI usage cache the widget reads.
 
-Runs the user-owned collector, then asserts the contract IrisCompact.qml and the
-shell's own AI panel rely on. Exit code 0 = every field present and sane.
+Runs the repository collector against a temporary cache, then asserts the
+contract IrisCompact.qml and the shell's own AI panel rely on. Exit code 0 = every field present and sane.
 
     python3 test/cache_contract.py
 """
 import json
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-COLLECTOR = Path.home() / ".local/bin/opencode-usage-v2"
-CACHE = Path.home() / ".cache/opencode-usage.json"
+COLLECTOR = Path(__file__).resolve().parent.parent / "collector" / "opencode-usage-v2"
+CACHE = Path(tempfile.mkdtemp(prefix="ai-usage-contract-")) / "usage.json"
 
 failures = []
 
@@ -25,7 +26,7 @@ def check(condition, message):
 
 def main():
     if COLLECTOR.exists():
-        subprocess.run([str(COLLECTOR)], check=True)
+        subprocess.run([str(COLLECTOR), "--cache", str(CACHE)], check=True)
 
     check(CACHE.exists(), f"cache missing: {CACHE}")
     if not CACHE.exists():

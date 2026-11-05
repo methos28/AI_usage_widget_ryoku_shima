@@ -1,10 +1,10 @@
-# AI usage — Shima Island module
+# AI usage - Shima Island module
 
 A dashboard for your coding agent, built into the Ryoku **Shima** Island
-Desktop page. It shows live OpenCode sessions, tokens for the period you pick,
-your top models and an activity heatmap. OpenCode data is read from this
-machine; no account and no network call. Claude Code and Codex are also
-selectable and are read from their own local caches.
+Desktop page. It shows live sessions, tokens for the period you pick, your top
+models and an activity heatmap. OpenCode, Claude Code and Codex are selectable
+from the chip at the top of the card; each one is read from its own local
+cache. No account and no network call.
 
 **Install time:** about 10 minutes. **Skills needed:** copy and paste.
 
@@ -23,11 +23,10 @@ Expanded Sections :
 
 ## If you only read one thing
 
-1. `git clone https://github.com/methos28/opencode_ryoku_shima_module.git`
-2. Copy `ai-usage/` into `~/.config/inir/widgets/`.
-3. Copy `collector/opencode-usage-v2` into `~/.local/bin/`, make it executable,
-   add the systemd drop-in below, start the service.
-4. Run `ryoku-shell reload`.
+1. `git clone https://github.com/methos28/opencode_widget_ryoku_shima.git`
+2. Run `./install.sh` from the clone. It copies the widget, the collector and
+   the systemd drop-in, then reloads the shell.
+3. Or follow the manual steps below.
 5. **Shima Settings → Island → Desktop page → Your modules** → tick **AI usage**.
 6. **Shima Settings → Island → Pages → Page width** → **520**.
 
@@ -64,7 +63,7 @@ LICENSE                MIT
 ### 1. Clone the repository (1 minute)
 
 ```bash
-git clone https://github.com/methos28/opencode_ryoku_shima_module.git \
+git clone https://github.com/methos28/opencode_widget_ryoku_shima.git \
   ~/Downloads/opencode-ryoku-shima
 ```
 
@@ -204,7 +203,7 @@ page changes material.
 |---|---|
 | **Now** | The agent, when it last wrote, and up to two running sessions: title, how long it has run, its tokens. The dot is green and breathes while a session runs. |
 | **Limits** | Only appears when the cache reports a real provider plan: today's tokens plus the 5h/7d windows with meters. |
-| **Spending** | Only appears when the period recorded a cost. Amount, API value, tokens and cache share. |
+| **Spending** | This month's API cost from the daily cost buckets, with the month name. Hidden when the cache records no cost. |
 | **Trend** | Bars for the chosen period, cache reads included. Today and Last 24 hours are hourly; the rest are daily (weekly above 100 buckets). Hover a bar to read it. |
 | **Models** | The top three models of the period: cache-inclusive total, share meter, and `I… O… R… CR…` with the cache hit rate. |
 | **Activity** | A heatmap of every recorded day, plus the all-time total (cache reads included), active days and the busiest day. The flame is your current streak; hover it. |
@@ -215,14 +214,14 @@ page changes material.
 
 Five options, one per line in the menu:
 
-1. **Today** — the whole day as 24 hourly slots.
-2. **Last 24 hours** — rolling 24 clock hours.
+1. **Today** - the whole day as 24 hourly slots.
+2. **Last 24 hours** - rolling 24 clock hours.
 3. **Last 7 days**
 4. **Last 30 days**
 5. **All time**
 
-The period drives Now, Spending, Trend and Models. Activity always shows the
-whole history.
+The period drives Now, Trend and Models. Spending always shows this month;
+Activity always shows the whole history.
 
 ---
 
@@ -234,7 +233,7 @@ menu in the card; the rest are for edge cases and you rarely touch them.
 
 | Key | Default | What it does |
 |---|---|---|
-| `tool` | `opencode` | Which agent to read: `opencode`, `claude` or `codex`. |
+| `tool` | `opencode` | Which agent to read: `opencode`, `claude` or `codex`. The chip at the top of the card writes this key. |
 | `moduleWidth` | `480` | Card width in px, clamped to the page body. |
 | `topModels` | `3` | Rows in the Models card. Maximum 3. |
 | `period` | `30` | `today`, `24h`, `7`, `30` or `all`. The menu writes it. |
@@ -245,7 +244,7 @@ The module also writes `layoutVersion` once, to migrate old installs. Leave it.
 
 ## Where the numbers come from
 
-- `~/.cache/opencode-usage.json` — written by the collector. The module only
+- `~/.cache/opencode-usage.json` - written by the collector. The module only
   reads it.
 - The collector reads OpenCode's own local database
   (`~/.local/share/opencode/opencode.db`) read-only. It never reads prompts or
@@ -253,6 +252,10 @@ The module also writes `layoutVersion` once, to migrate old installs. Leave it.
 - No network. No sign-in. Nothing leaves the machine.
 - Freshness: the cache is rewritten every minute while the page is open and
   every five minutes by the systemd timer.
+- Refresh runs the collector directly for OpenCode; the Ryoku service is only a
+  fallback. Claude and Codex still use the service so its install guards apply.
+- The collector takes a lock, writes atomically and keeps day and hour history
+  append-only, so a published total never decreases.
 
 ### Other agents
 
@@ -261,9 +264,14 @@ The module also writes `layoutVersion` once, to migrate old installs. Leave it.
 
 Those collectors are lighter than the OpenCode one: they write the 5h/7d quota,
 today's tokens and a seven-day `_recent_days` list, but no long history, model
-rows or session list. So on Claude and Codex the Now, Models and Spending cards
+rows or session list. On Claude and Codex the Now, Models and Spending cards
 stay empty, and Trend and Activity cover seven days. The quota windows and
 today's total are accurate.
+
+To try the switch without those CLIs installed, run
+`python3 test/make-demo-caches.py`. It writes believable demo caches marked
+`"_source": "demo"`. Remove them with
+`rm ~/.cache/claude-usage.json ~/.cache/codex-usage.json`.
 
 `claude-usage` asks Anthropic's usage endpoint with the OAuth login Claude Code
 already stored; it sends no prompts. It cannot write a cache until Claude Code
@@ -313,23 +321,30 @@ want it gone too.
 **Repository layout**
 
 ```
-ai-usage/IrisCompact.qml       the Island card grid (the whole UI)
-ai-usage/UsageModel.qml        cache reader, ticker, session filter
-ai-usage/AiUsageTile.qml       the same numbers as a plain desktop tile
-ai-usage/widget.json           manifest; iris.main is what Shima loads
-ai-usage/test/cache_contract.py  end-to-end cache check
-collector/opencode-usage-v2    the collector that writes the cache
+ai-usage/IrisCompact.qml        the page shell, layout and menus
+ai-usage/components/            one card or primitive per file
+ai-usage/UsageModel.qml         cache reader, ticker, session filter
+ai-usage/AiUsageTile.qml        the same numbers as a plain desktop tile
+ai-usage/widget.json            manifest; iris.main is what Shima loads
+collector/opencode-usage-v2     the collector that writes the cache
+systemd/                        the Ryoku timer drop-in
+install.sh                      one-command install
+test/test_collector.py          collector fixtures
+test/cache_contract.py          live cache contract check
+test/lint.sh                    QML and Python static checks
 ```
 
 **Test**
 
 ```bash
-python3 ~/.config/inir/widgets/ai-usage/test/cache_contract.py
+./test/run.sh
 ```
 
-It runs the collector and asserts the contract: shell keys, `_days` order,
-`_hours` length, `_periods` completeness and nesting, model rows ranked by cache-inclusive
-totals, `_sessions` newest-first with a boolean `running`.
+`test_collector.py` builds throwaway sqlite and file stores, runs the collector
+against a temp cache and checks the v2 fields, residual true-up, append-only
+history and lock. `cache_contract.py` runs the collector and asserts the live
+cache contract: shell keys, `_days` order, `_hours` length, `_periods`
+completeness and nesting, model rows, `_sessions` newest-first.
 
 **Rules**
 
@@ -344,6 +359,7 @@ totals, `_sessions` newest-first with a boolean `running`.
 - Do not pass a generation argument to `scripts/scan-widgets.sh`; it prunes the
   live staging directory.
 
-**Licence**
+**Licence and credit**
 
-MIT. See `LICENSE`.
+MIT. See `LICENSE`. The widget is built for Ryoku Shima; Shima's iNiR lineage is
+by snowarch. No iNiR code is copied into this repository.

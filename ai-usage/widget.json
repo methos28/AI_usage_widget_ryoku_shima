@@ -1,9 +1,9 @@
 {
     "name": "AI usage",
     "icon": "neurology",
-    "version": "1.0",
-    "author": "MeThOs",
-    "description": "Agentic AI usage on the Island: live sessions, tokens for the chosen period, top models and an activity heatmap, straight from the shared usage caches.",
+    "version": "1.1.0",
+    "author": "Prasad Dhupkar <pmdhupkar@gmail.com>",
+    "description": "Agentic AI usage on the Shima Island: OpenCode sessions, period tokens, top models, month spending and an activity heatmap, with Claude and Codex from their own caches. Tap the agent chip to switch.",
     "category": "system",
     "main": "AiUsageTile.qml",
     "iris": {
