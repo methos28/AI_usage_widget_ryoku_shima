@@ -87,10 +87,6 @@ Item {
         ? Number(root.activePeriod.tokens) : usageModel.today
     readonly property real periodCacheRate: root.activePeriod
         ? Number(root.activePeriod.cacheRate) : 0
-    readonly property real periodCost: root.activePeriod
-        ? Number(root.activePeriod.cost) : 0
-    readonly property bool hasSpend: root.periodCost > 0.0005 || root.hasCostHistory
-
     // This month's spend from the day buckets (cost is per assistant turn).
     readonly property var monthly: {
         const key = Qt.formatDate(new Date(), "yyyy-MM")
@@ -102,6 +98,13 @@ Item {
         return ({ current: total, label: root.monthLabel(key) })
     }
     readonly property bool hasCostHistory: usageModel.days.some(day => Number(day?.cost ?? 0) > 0)
+    readonly property real periodCost: root.activePeriod
+        ? Number(root.activePeriod.cost) : 0
+    readonly property bool hasSpend: root.periodCost > 0.0005 || root.hasCostHistory
+    // Claude and Codex are plan agents: Spending shares their Now card. OpenCode
+    // keeps the standalone Spend card beside Now.
+    readonly property bool planAgent: root.tool !== "opencode"
+    readonly property bool integratedSpend: root.planAgent && root.hasCostHistory
     readonly property bool hasPlan: usageModel.hasPlan
 
     // Layout 1 was the single long card, layout 2 the fixed 60/90/180 control.
@@ -324,9 +327,7 @@ Item {
             width: parent.width
             spacing: root.gap
             visible: usageModel.has
-            // Spending pairs with Now only when there is no Limits card to
-            // pair with; three cards would not fit one row.
-            readonly property bool spendHere: root.hasSpend && !root.hasPlan
+            readonly property bool spendHere: !root.planAgent && root.hasSpend
             readonly property int count: (root.hasPlan ? 1 : 0) + 1 + (spendHere ? 1 : 0)
             readonly property real half: Math.round((width - spacing) / 2)
             readonly property real rowHeight: Math.max(
@@ -357,13 +358,6 @@ Item {
                 width: primaryRow.count > 1 ? primaryRow.half : primaryRow.width
                 height: primaryRow.rowHeight
             }
-        }
-
-        AiUsageSpendCard {
-                page: root
-                usage: usageModel
-            width: parent.width
-            visible: root.hasSpend && root.hasPlan
         }
 
         AiUsageTrendCard {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- Spending moved into the Now card for Claude and Codex, using the empty area.
+  OpenCode keeps the separate Spending card beside Now.
+
 ## 1.1.0
 
 - Added an agent chip and menu to switch OpenCode, Claude Code and Codex on the card.

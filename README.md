@@ -201,9 +201,9 @@ page changes material.
 
 | Card | What it tells you |
 |---|---|
-| **Now** | The agent, when it last wrote, and up to two running sessions: title, how long it has run, its tokens. The dot is green and breathes while a session runs. |
+| **Now** | The agent, when it last wrote, and up to two running sessions: title, how long it has run, its tokens. The dot is green and breathes while a session runs. On Claude and Codex, this month's Spending sits in the card's empty bottom area. |
 | **Limits** | Only appears when the cache reports a real provider plan: today's tokens plus the 5h/7d windows with meters. |
-| **Spending** | This month's API cost from the daily cost buckets, with the month name. Hidden when the cache records no cost. |
+| **Spending** | This month's API cost from the daily cost buckets, with the month name. OpenCode shows it as its own card beside Now; Claude and Codex show it inside Now. Hidden when the cache records no cost. |
 | **Trend** | Bars for the chosen period, cache reads included. Today and Last 24 hours are hourly; the rest are daily (weekly above 100 buckets). Hover a bar to read it. |
 | **Models** | The top three models of the period: cache-inclusive total, share meter, and `I… O… R… CR…` with the cache hit rate. |
 | **Activity** | A heatmap of every recorded day, plus the all-time total (cache reads included), active days and the busiest day. The flame is your current streak; hover it. |

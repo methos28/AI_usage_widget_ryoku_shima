@@ -1,7 +1,7 @@
 {
     "name": "AI usage",
     "icon": "neurology",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "author": "Prasad Dhupkar <pmdhupkar@gmail.com>",
     "description": "Agentic AI usage on the Shima Island: OpenCode sessions, period tokens, top models, month spending and an activity heatmap, with Claude and Codex from their own caches. Tap the agent chip to switch.",
     "category": "system",
