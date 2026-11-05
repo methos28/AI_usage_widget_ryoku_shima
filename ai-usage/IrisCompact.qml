@@ -29,7 +29,7 @@ Item {
 
     // ── config (written by Shima Settings; read null-guarded here) ──
     readonly property string tool: CustomWidgets.getConfigValue("ai-usage", "tool", "opencode")
-    readonly property var labels: ({ opencode: "OpenCode", claude: "Claude" })
+    readonly property var labels: ({ opencode: "OpenCode", claude: "Claude", codex: "Codex" })
     readonly property string toolLabel: root.labels[root.tool] ?? root.tool
 
     // The Island's Desktop page body is iris.bar.pageWidth minus its 20px

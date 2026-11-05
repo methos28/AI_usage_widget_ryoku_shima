@@ -16,7 +16,7 @@ AbstractBackgroundWidget {
     configEntryName: "custom.ai-usage"
 
     readonly property string tool: CustomWidgets.getConfigValue("ai-usage", "tool", "opencode")
-    readonly property var labels: ({ opencode: "OpenCode", claude: "Claude" })
+    readonly property var labels: ({ opencode: "OpenCode", claude: "Claude", codex: "Codex" })
     readonly property string toolLabel: root.labels[root.tool] ?? root.tool
 
     implicitWidth: Math.round(172 * scaleFactor)
