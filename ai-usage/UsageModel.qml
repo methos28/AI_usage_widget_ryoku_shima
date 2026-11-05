@@ -137,6 +137,15 @@ Item {
         return String(value)
     }
 
+    // The collector is ours; refreshing it must not depend on the Ryoku unit
+    // name. OpenCode runs the local collector directly, with the shipped
+    // service as a fallback. Claude and Codex still go through the service so
+    // its install guards keep their fake or absent caches untouched.
+    readonly property string collectorPath: Quickshell.env("HOME") + "/.local/bin/opencode-usage-v2"
+    readonly property var collectorCommand: root.tool === "opencode"
+        ? [root.collectorPath]
+        : ["ryoku-host", "svc", "--user", "start", "ryoku-ai-usage.service"]
+
     function refresh(): void {
         if (root.refreshing) return
         root.refreshing = true
@@ -268,14 +277,25 @@ Item {
 
     Process {
         id: collector
+        command: root.collectorCommand
+        onExited: (exitCode, exitStatus) => {
+            if (root.tool === "opencode" && exitCode !== 0) {
+                serviceFallback.running = true
+                return
+            }
+            _pendingReloadTimer.restart()
+        }
+    }
+    Process {
+        id: serviceFallback
         command: ["ryoku-host", "svc", "--user", "start", "ryoku-ai-usage.service"]
-        onExited: {
+        onExited: (exitCode, exitStatus) => {
             _pendingReloadTimer.restart()
         }
     }
     Timer {
         id: _pendingReloadTimer
-        interval: 1200
+        interval: 600
         onTriggered: cacheFile.reload()
     }
     Timer {

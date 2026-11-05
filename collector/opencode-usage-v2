@@ -24,6 +24,8 @@ Lives in ~/.local/bin so `ryoku update` (which re-lays /usr/bin and
 ~/.config/quickshell) never clobbers it. Wired via
 ~/.config/systemd/user/ryoku-ai-usage.service.d/override.conf.
 """
+import argparse
+import fcntl
 import glob
 import json
 import os
@@ -31,6 +33,8 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+
+VERSION = "2.2.0"
 
 DATA_DIR = Path(os.environ.get("OPENCODE_DATA_DIR") or (Path(
     os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode"))
@@ -769,7 +773,31 @@ def previous_cache() -> dict:
         return {}
 
 
+def acquire_lock():
+    """One collector at a time. A manual refresh can race the timer; both read
+    the previous cache to keep the day history append-only, so they must not
+    write it concurrently."""
+    lock_path = CACHE_FILE.with_name(CACHE_FILE.name + ".lock")
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = lock_path.open("w")
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return handle
+    except OSError:
+        return None
+
+
 def main() -> None:
+    lock = acquire_lock()
+    if lock is None:
+        return
+    try:
+        _run()
+    finally:
+        lock.close()
+
+
+def _run() -> None:
     if not STORAGE_DIR.is_dir() and not DB_FILE.exists():
         stale_last()
         return
@@ -847,5 +875,20 @@ def main() -> None:
     os.replace(temp_file, CACHE_FILE)
 
 
-if __name__ == "__main__":
+def cli() -> None:
+    global CACHE_FILE
+    parser = argparse.ArgumentParser(
+        prog="opencode-usage-v2",
+        description="Write the shared OpenCode usage cache from the local session store.")
+    parser.add_argument("--version", action="version",
+                        version="opencode-usage-v2 " + VERSION)
+    parser.add_argument("--cache", type=Path,
+                        help="write this cache path instead of ~/.cache/opencode-usage.json")
+    args = parser.parse_args()
+    if args.cache is not None:
+        CACHE_FILE = args.cache.expanduser()
     main()
+
+
+if __name__ == "__main__":
+    cli()
