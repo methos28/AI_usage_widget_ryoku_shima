@@ -70,16 +70,25 @@ AiUsageGlassCard {
                     color: liveDot.live ? IrisStyle.success
                         : ColorUtils.applyAlpha(IrisStyle.accent, 0.45)
                     opacity: liveDot.live ? liveDot.pulse : 1
-                    SequentialAnimation on pulse {
-                        running: liveDot.live
+                    // The pulse runs on its own clock. It used to be
+                    // `running: liveDot.live`, and every cache refresh emptied
+                    // the session list for a frame, which restarted the
+                    // animation and made a live dot look faster than its
+                    // 1.6 s cycle. A constant loop keeps the speed honest.
+                    SequentialAnimation {
+                        running: true
                         loops: Animation.Infinite
                         NumberAnimation {
+                            target: liveDot
+                            property: "pulse"
                             from: 0.35
                             to: 1
                             duration: 800
                             easing.type: Easing.InOutQuad
                         }
                         NumberAnimation {
+                            target: liveDot
+                            property: "pulse"
                             from: 1
                             to: 0.35
                             duration: 800
