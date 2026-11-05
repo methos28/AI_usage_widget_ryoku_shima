@@ -2,8 +2,9 @@
 
 ## 1.1.1
 
-- Spending moved into the Now card for Claude and Codex, using the empty area.
-  OpenCode keeps the separate Spending card beside Now.
+- Spending moved into the Now card for Claude and Codex, using the empty area and
+  the same card layout as the standalone Spending card. OpenCode keeps the
+  separate Spending card beside Now.
 
 ## 1.1.0
 

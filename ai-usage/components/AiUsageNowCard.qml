@@ -18,7 +18,7 @@ AiUsageGlassCard {
     radius: page.radius
     readonly property int spendGap: Math.round(6 * IrisStyle.density)
     readonly property int spendBlockHeight: page.integratedSpend
-        ? 1 + card.spendGap + spendRow.height : 0
+        ? 1 + card.spendGap + spendBody.implicitHeight : 0
     implicitHeight: body.implicitHeight + 2 * page.pad
         + (page.integratedSpend ? card.spendBlockHeight + card.spendGap : 0)
 
@@ -124,9 +124,10 @@ AiUsageGlassCard {
         }
     }
 
-    // Spending shares the empty room under the sessions instead of taking a
-    // row of its own. It sits on the card's bottom edge, so a taller Limits
-    // card next to it does not leave a blank strip.
+    // Spending uses the empty room under the sessions instead of taking a row
+    // of its own, and it keeps the Spending card's own layout so the number
+    // reads the same on both agents. It sits on the card's bottom edge, so a
+    // taller Limits card next to it does not leave a blank strip.
     Item {
         id: spendBlock
         visible: page.integratedSpend
@@ -144,43 +145,14 @@ AiUsageGlassCard {
             color: ColorUtils.applyAlpha(IrisStyle.muted, 0.16)
         }
 
-        Item {
-            id: spendRow
+        AiUsageSpendBody {
+            id: spendBody
+            page: card.page
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: spendHairline.bottom
+            anchors.bottom: parent.bottom
             anchors.topMargin: card.spendGap
-            height: Math.max(spendLabel.implicitHeight, spendAmount.implicitHeight,
-                spendMonth.implicitHeight)
-
-            IrisText {
-                id: spendLabel
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                role: IrisText.Eyebrow
-                color: IrisStyle.muted
-                font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: "Spending"
-            }
-            IrisText {
-                id: spendAmount
-                anchors.right: spendMonth.left
-                anchors.rightMargin: Math.round(4 * IrisStyle.density)
-                anchors.verticalCenter: parent.verticalCenter
-                role: IrisText.Metric
-                font.pixelSize: Math.round(14 * IrisStyle.density)
-                font.family: IrisStyle.fontNumbers
-                text: page.money(page.monthly.current)
-            }
-            IrisText {
-                id: spendMonth
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                role: IrisText.Meta
-                color: IrisStyle.muted
-                font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: page.monthly.label
-            }
         }
     }
 }
