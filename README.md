@@ -8,6 +8,17 @@ selectable and are read from their own local caches.
 
 **Install time:** about 10 minutes. **Skills needed:** copy and paste.
 
+
+# Widget Preview
+Collapsed Sections : 
+
+<img width="608" height="645" alt="image" src="https://github.com/user-attachments/assets/1ae61688-438d-4215-8cc0-19f1b2544985" />
+
+Expanded Sections :
+
+<img width="578" height="901" alt="image" src="https://github.com/user-attachments/assets/6263e9c7-7b1c-4258-a6be-5c8bfc8ab406" />
+
+
 ---
 
 ## If you only read one thing
