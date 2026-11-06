@@ -72,7 +72,7 @@ AiUsageGlassCard {
                     role: IrisText.Meta
                     color: IrisStyle.muted
                     font.pixelSize: Math.round(10 * IrisStyle.density)
-                    text: "tokens today"
+                    text: "tokens today · incl. cached"
                 }
             }
         }
