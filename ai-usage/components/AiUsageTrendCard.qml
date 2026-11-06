@@ -99,10 +99,20 @@ AiUsageGlassCard {
                 readonly property int count: page.trendBuckets.length
                 readonly property int barGap: count > 30
                     ? Math.round(1 * IrisStyle.density) : Math.round(2 * IrisStyle.density)
+                // Short histories keep readable bars instead of stretching two
+                // days across the whole card. Centred, never wider than the row.
+                readonly property real slot: Math.min(
+                    (chart.width - chart.barGap * Math.max(0, count - 1)) / Math.max(1, count),
+                    Math.round(40 * IrisStyle.density))
+                readonly property real step: chart.slot + chart.barGap
 
                 Row {
                     id: barRow
-                    anchors.fill: parent
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(parent.width,
+                        chart.slot * chart.count + chart.barGap * Math.max(0, chart.count - 1))
+                    height: parent.height
                     spacing: chart.barGap
                     Repeater {
                         model: page.trendBuckets
@@ -110,8 +120,7 @@ AiUsageGlassCard {
                             id: barSlot
                             required property var modelData
                             required property int index
-                            width: (barRow.width - barRow.spacing * Math.max(0, chart.count - 1))
-                                / Math.max(1, chart.count)
+                            width: chart.slot
                             height: barRow.height
                             readonly property bool future: {
                                 if (!page.hourly) return false
@@ -125,7 +134,8 @@ AiUsageGlassCard {
                                     nowHour.setMinutes(0, 0, 0)
                                     return Number(modelData?.start ?? 0) === nowHour.getTime()
                                 }
-                                return index === chart.count - 1
+                                return String(modelData?.date ?? "")
+                                    === Qt.formatDate(new Date(), "yyyy-MM-dd")
                             }
                             readonly property real tokens: Number(modelData?.tokens ?? 0)
                             Rectangle {
@@ -158,8 +168,13 @@ AiUsageGlassCard {
                         // A page that opens under a still pointer gets a synthetic
                         // move; only a pointer actually inside the chart counts.
                         if (!hoverArea.containsMouse || chart.count === 0) return
+                        const local = mouse.x - barRow.x
+                        if (local < 0 || local > barRow.width) {
+                            chart.hovered = -1
+                            return
+                        }
                         chart.hovered = Math.max(0, Math.min(chart.count - 1,
-                            Math.floor(mouse.x / (chart.width / chart.count))))
+                            Math.floor(local / chart.step)))
                     }
                     onExited: chart.hovered = -1
                 }

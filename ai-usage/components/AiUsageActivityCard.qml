@@ -53,11 +53,12 @@ AiUsageGlassCard {
             const column = []
             for (let r = 0; r < 7; r++) {
                 const key = Qt.formatDate(cursor, "yyyy-MM-dd")
-                const known = byDate[key]
-                if (known === undefined) {
+                if (cursor.getTime() > today.getTime()) {
+                    // Days still to come in this week: not yet, not zero.
                     column.push(null)
                 } else {
-                    const value = Number(known) || 0
+                    const recorded = byDate[key] !== undefined
+                    const value = Number(byDate[key] ?? 0) || 0
                     column.push({ date: key, value: value })
                     if (value > 0) {
                         active += 1
@@ -65,17 +66,13 @@ AiUsageGlassCard {
                     }
                     if (!busiest || value > busiest.value)
                         busiest = { date: key, value: value }
-                    if (span === 0)
+                    if (recorded && span === 0)
                         span = Math.round((today.getTime() - cursor.getTime()) / 86400000) + 1
                 }
                 cursor.setDate(cursor.getDate() + 1)
             }
             weeks.push(column)
         }
-        // A young history starts at its first week instead of padding the
-        // map with empty columns on the left.
-        while (weeks.length > 0 && weeks[0].every(cell => cell === null))
-            weeks.shift()
         values.sort((a, b) => a - b)
         const thresholds = values.length > 0
             ? [0.25, 0.5, 0.75].map(q => values[Math.min(values.length - 1, Math.floor(values.length * q))])

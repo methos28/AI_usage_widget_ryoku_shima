@@ -208,8 +208,32 @@ Item {
         const all = usageModel.days
         if (!all || all.length === 0)
             return ({ buckets: [], total: 0, peak: 1, span: 0, unit: "days" })
-        const want = root.periodDays > 0 ? root.periodDays : all.length
-        const list = all.slice(Math.max(0, all.length - want))
+        // Fixed calendar slots ending today: a period shows its whole window
+        // even when the cache starts a day or two ago, like the hourly view.
+        const dayMs = 86400000
+        const byDate = ({})
+        let firstMs = 0
+        for (const day of all) {
+            const key = String(day?.date ?? "")
+            const at = new Date(key + "T12:00:00").getTime()
+            if (isNaN(at)) continue
+            byDate[key] = root.historyWeight(day)
+            firstMs = firstMs === 0 ? at : Math.min(firstMs, at)
+        }
+        const today = new Date()
+        today.setHours(12, 0, 0, 0)
+        // Periods end today; All time ends today but starts at the first recorded day.
+        const count = root.periodDays > 0
+            ? root.periodDays
+            : firstMs > 0 ? Math.max(1, Math.round((today.getTime() - firstMs) / dayMs) + 1)
+                          : all.length
+        const list = []
+        for (let step = count - 1; step >= 0; step--) {
+            const slot = new Date(today.getTime())
+            slot.setDate(slot.getDate() - step)
+            const key = Qt.formatDate(slot, "yyyy-MM-dd")
+            list.push({ date: key, tokens: Number(byDate[key] ?? 0) })
+        }
         const weekly = list.length > 100
         const buckets = []
         let total = 0
