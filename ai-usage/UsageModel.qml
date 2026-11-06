@@ -35,6 +35,7 @@ Item {
     property var hours: []             // [{start, tokens}] the last 48 clock hours
     property var sessions: []          // [{id, title, directory, started, updated, tokens, cost, running}]
     property var periods: ({})         // "7"/"30"/"all" → {tokens, cacheRate, cost, sessions, models}
+    property var windows: []           // [{label, pct, caption, resetTs}] the plan's own limit windows
     readonly property var runningSessions: root.sessions.filter(s => s && s.running)
     // A provider plan is what makes a 5h/7d window meaningful. The local
     // OpenCode collector says "local messages" and invents its budgets, so
@@ -100,6 +101,19 @@ Item {
         return d + (d === 1 ? " day ago" : " days ago")
     }
 
+    // When a rate-limit window resets, short enough for a card line.
+    function resetIn(ts: int): string {
+        root.tick
+        if (!(ts > 0)) return ""
+        const secs = ts - Math.floor(Date.now() / 1000)
+        if (secs <= 0) return "resets now"
+        const mins = Math.round(secs / 60)
+        if (mins < 60) return "resets in " + mins + " min"
+        const hours = Math.round(mins / 60)
+        if (hours < 24) return "resets in " + hours + " hr"
+        return "resets in " + Math.round(hours / 24) + " days"
+    }
+
     Component.onCompleted: cacheFile.reload()
     onToolChanged: {
         // Keep the current numbers visible while the other cache loads. A
@@ -126,6 +140,7 @@ Item {
         root.hours = []
         root.sessions = []
         root.periods = ({})
+        root.windows = []
     }
 
     function pct(value: string): int {
@@ -232,6 +247,38 @@ Item {
             root.sessions = sessionRows
             root.periods = (data._periods && typeof data._periods === "object")
                 ? root.normalizePeriods(data._periods) : ({})
+
+            // The plan's own windows: Codex Free reports a single 30-day
+            // window, Claude its 5h and 7d pair. Read whatever the cache
+            // carries instead of assuming the pair.
+            const windowRows = []
+            if (data._windows instanceof Array) {
+                for (const window of data._windows) {
+                    const minutes = Number(window?.minutes) || 0
+                    windowRows.push({
+                        label: String(window?.label || ""),
+                        caption: minutes === 300 ? root.windowTokens
+                            : minutes === 10080 ? root.weekTokens : "",
+                        pct: root.pct(String(Number(window?.utilization) || 0)),
+                        resetTs: parseInt(window?.reset) || 0
+                    })
+                }
+            }
+            if (windowRows.length === 0 && root.hasPlan) {
+                windowRows.push({
+                    label: "5h",
+                    caption: root.windowTokens,
+                    pct: root.pct5h,
+                    resetTs: root.reset5hTs
+                })
+                windowRows.push({
+                    label: "7d",
+                    caption: root.weekTokens,
+                    pct: root.percent7d,
+                    resetTs: root.reset7dTs
+                })
+            }
+            root.windows = windowRows
         } catch (e) {
             console.warn("[ai-usage] parse failed:", e)
         } finally {

@@ -17,6 +17,7 @@ Column {
     property string label: ""
     property string caption: ""
     property string share: ""
+    property string resetLabel: ""
     property real proportion: 0
     width: parent ? parent.width : 0
     spacing: Math.round(3 * IrisStyle.density)
@@ -74,6 +75,14 @@ Column {
             width: Math.max(0, Math.min(1, windowRow.proportion)) * parent.width
             color: windowRow.ink
         }
+    }
+    IrisText {
+        visible: windowRow.resetLabel.length > 0
+        width: parent.width
+        role: IrisText.Eyebrow
+        font.pixelSize: Math.round(9 * IrisStyle.density)
+        color: IrisStyle.muted
+        text: windowRow.resetLabel
     }
 }
 
