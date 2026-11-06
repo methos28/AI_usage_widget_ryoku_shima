@@ -35,7 +35,8 @@ Expanded Sections :
    the systemd drop-in, then reloads the shell.
 3. Or follow the manual steps below.
 5. **Shima Settings → Island → Desktop page → Your modules** → tick **AI usage**.
-6. **Shima Settings → Island → Pages → Page width** → **520**.
+6. Optional: **Shima Settings → Island → Pages → Page width** → **520** for
+   more room. The default 440 px page fits the card as it is.
 
 Done. The long version, with checks after every step, is next.
 
@@ -169,15 +170,18 @@ No output is good.
 ✅ **Check:** open the Island on its **Desktop** page (the middle page button).
 The card is under the date and agenda.
 
-### 6. Make it wide (1 minute)
+### 6. Make it wide (optional, 1 minute)
 
-The module is designed for a 480 px card, which needs a 520 px Island page.
+The module's card width defaults to 480 px, matched by a 520 px Island page.
+The card also fits the default 440 px page untouched: the layout clamps to the
+page body, and the activity heatmap needs 179 px, so nothing overflows. A
+wider page gives the top row more room, nothing more.
 
 1. In Shima Settings: **Island → Pages**.
-2. Set **Page width** to **520**.
+2. Optional: set **Page width** to **520**.
 
-✅ **Check:** the card fills the page width and the top row shows two cards
-side by side.
+✅ **Check:** at the default width the card still fills the page width; at 520
+the top row shows two cards side by side.
 
 ### 7. Pick a period (10 seconds)
 
@@ -301,7 +305,7 @@ has been used and `~/.claude/.credentials.json` exists. Codex likewise needs
 | Models / Spending empty | The old collector is running. Redo step 3 and check `_periods` prints `True`. |
 | Always `no session running` | Same cause: the cache has no `_sessions`. Redo step 3. |
 | Numbers frozen | The page is closed, so the minute refresh is idle. Reopen it, or start the service by hand. |
-| Card looks clipped | Page too narrow. Shima Settings → Island → Pages → Page width 520. |
+| Card looks clipped | Page too narrow. Shima Settings → Island → Pages → Page width 520 (the default 440 fits; this is for extra room). |
 | Period menu does not open | Trend is closed. Click the row first; the period text works only when open. |
 | Something broke after an update | `ryoku-shell reload`. If it persists, check the log (below) and restore the last backup. |
 
