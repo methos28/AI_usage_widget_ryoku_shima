@@ -25,6 +25,5 @@ collector: keep published history append-only
 
 ## Licence
 
-By contributing you agree that the change is distributed under the MIT licence
-in this repository. Code merged into Ryoku itself is distributed under
-GPL-3.0.
+The repository is licensed under GPL-3.0 and
+the `LICENSE` file carries the licence text.

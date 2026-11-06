@@ -60,7 +60,7 @@ What is in this repository:
 ai-usage/              the Shima module (QML + manifest)
 collector/             the usage collector that feeds it
 README.md              this guide
-LICENSE                MIT
+LICENSE                GPL-3.0
 ```
 
 ---
@@ -373,5 +373,5 @@ completeness and nesting, model rows, `_sessions` newest-first.
 
 **Licence and credit**
 
-MIT. See `LICENSE`. The widget is built for Ryoku Shima; Shima's iNiR lineage is
+GPL-3.0. See `LICENSE`. The widget is built for Ryoku Shima; Shima's iNiR lineage is
 by snowarch. No iNiR code is copied into this repository.
