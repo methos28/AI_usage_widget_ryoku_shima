@@ -35,6 +35,7 @@ Item {
     property var hours: []             // [{start, tokens}] the last 48 clock hours
     property var sessions: []          // [{id, title, directory, started, updated, tokens, cost, running}]
     property var periods: ({})         // "7"/"30"/"all" → {tokens, cacheRate, cost, sessions, models}
+    property var windows: []           // [{label, pct, caption, resetTs}] server-reported quota windows
     readonly property var runningSessions: root.sessions.filter(s => s && s.running)
     // A provider plan is what makes a 5h/7d window meaningful. The local
     // OpenCode collector says "local messages" and invents its budgets, so
@@ -43,11 +44,40 @@ Item {
         if (!root.has) return false
         const name = String(root.plan || "").trim().toLowerCase()
         if (name.length === 0)
-            return root.reset5hTs > 0 || root.reset7dTs > 0
+            return root.windows.length > 0 || root.reset5hTs > 0 || root.reset7dTs > 0
         return name !== "local messages" && name !== "local" && name !== "unknown"
     }
     function period(key: string): var {
         return root.periods?.[key] ?? null
+    }
+
+    function normalizeWindows(data: var): var {
+        const rows = []
+        if (data._windows instanceof Array) {
+            for (const window of data._windows) {
+                const minutes = Number(window?.minutes) || 0
+                if (minutes <= 0) continue
+                const label = minutes % 1440 === 0 ? (minutes / 1440) + "d"
+                    : minutes % 60 === 0 ? (minutes / 60) + "h" : minutes + "m"
+                rows.push({
+                    label: label,
+                    caption: minutes === 300 ? root.windowTokens
+                        : minutes === 10080 ? root.weekTokens : "",
+                    pct: root.pct(String(Number(window?.utilization) || 0)),
+                    resetTs: parseInt(window?.reset) || 0
+                })
+            }
+        } else {
+            // Older caches have only named windows. An explicit empty array
+            // means the account reports no windows; never invent quotas then.
+            if (String(data["5h-utilization"] ?? "").length > 0)
+                rows.push({ label: "5h", caption: root.windowTokens,
+                    pct: root.pct5h, resetTs: root.reset5hTs })
+            if (String(data["7d-utilization"] ?? "").length > 0)
+                rows.push({ label: "7d", caption: root.weekTokens,
+                    pct: root.percent7d, resetTs: root.reset7dTs })
+        }
+        return rows
     }
 
     // Period rows come from the collector with a raw model name; give them the
@@ -100,6 +130,18 @@ Item {
         return d + (d === 1 ? " day ago" : " days ago")
     }
 
+    function resetIn(ts: double): string {
+        root.tick
+        if (!(ts > 0)) return ""
+        const seconds = ts - Math.floor(Date.now() / 1000)
+        if (seconds <= 0) return "reset due"
+        const minutes = Math.ceil(seconds / 60)
+        if (minutes < 60) return "resets in " + minutes + " min"
+        const hours = Math.ceil(minutes / 60)
+        if (hours < 24) return "resets in " + hours + " hr"
+        return "resets in " + Math.ceil(hours / 24) + " days"
+    }
+
     Component.onCompleted: cacheFile.reload()
     onToolChanged: {
         // Keep the current numbers visible while the other cache loads. A
@@ -126,6 +168,7 @@ Item {
         root.hours = []
         root.sessions = []
         root.periods = ({})
+        root.windows = []
     }
 
     function pct(value: string): int {
@@ -185,6 +228,7 @@ Item {
             root.weekTokens = weekLimit > 0
                 ? root.kmg(weekUsed) + " / " + root.kmg(weekLimit)
                 : ""
+            root.windows = root.normalizeWindows(data)
             root.today = Number(data._today_tokens) || 0
             if (data._recent_days instanceof Array) {
                 const days = data._recent_days
@@ -193,8 +237,11 @@ Item {
             if (data._hours instanceof Array && data._hours.length > 0) {
                 const hours = []
                 for (const hour of data._hours) {
+                    // Older Codex caches stamped hours in seconds; the widget
+                    // builds slots in milliseconds, so normalise at the door.
+                    const start = Number(hour?.start) || 0
                     hours.push({
-                        start: Number(hour?.start) || 0,
+                        start: start > 0 && start < 100000000000 ? start * 1000 : start,
                         tokens: Number(hour?.tokens) || 0,
                         cacheRead: Number(hour?.cacheRead) || 0
                     })
@@ -309,7 +356,13 @@ Item {
     Timer {
         id: _pendingReloadTimer
         interval: 600
-        onTriggered: cacheFile.reload()
+        onTriggered: {
+            // The collector has exited by now: release the refresh button even
+            // when the run wrote nothing new, instead of waiting the full
+            // stale timeout.
+            root.refreshing = false
+            cacheFile.reload()
+        }
     }
     Timer {
         id: staleTimer

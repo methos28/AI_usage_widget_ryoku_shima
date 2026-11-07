@@ -77,19 +77,17 @@ AiUsageGlassCard {
             }
         }
 
-        AiUsageWindowRow {
-            width: parent.width
-            label: "5h"
-            caption: usage.windowTokens
-            share: usage.pct5h + "% used"
-            proportion: usage.pct5h / 100
-        }
-        AiUsageWindowRow {
-            width: parent.width
-            label: "7d"
-            caption: usage.weekTokens
-            share: usage.percent7d + "% used"
-            proportion: usage.percent7d / 100
+        Repeater {
+            model: card.usage.windows
+            AiUsageWindowRow {
+                required property var modelData
+                width: parent.width
+                label: modelData.label
+                caption: modelData.caption
+                share: modelData.pct + "% used"
+                proportion: modelData.pct / 100
+                resetLabel: card.usage.resetIn(modelData.resetTs)
+            }
         }
     }
 }
