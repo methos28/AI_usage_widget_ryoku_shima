@@ -29,8 +29,8 @@ AiUsageGlassCard {
         return Number(day?.tokens ?? 0) + Number(day?.cacheRead ?? 0)
     }
 
-    // Thirteen week columns ending in the week that holds today, each
-    // starting on the locale's first day; days the cache lacks stay empty.
+    // Sixty-three calendar days ending today in nine full seven-day columns.
+    // No partial columns; missing days remain dim squares.
     readonly property var map: {
         const days = usage.days
         if (!days || days.length === 0)
@@ -40,21 +40,21 @@ AiUsageGlassCard {
             byDate[String(day?.date ?? "")] = card.dayWeight(day)
         const today = new Date()
         today.setHours(12, 0, 0, 0)
-        const weekStart = Number(Qt.locale().firstDayOfWeek ?? 0)
-        const cursor = new Date(today.getTime())
-        cursor.setDate(cursor.getDate()
-            - (((today.getDay() - weekStart) % 7 + 7) % 7) - 12 * 7)
+        const start = new Date(today.getTime())
+        start.setDate(start.getDate() - 62)
+        const cursor = new Date(start.getTime())
+        const weekCount = 9
         let active = 0
         let busiest = null
         let span = 0
         const values = []
         const weeks = []
-        for (let w = 0; w < 13; w++) {
+        for (let w = 0; w < weekCount; w++) {
             const column = []
             for (let r = 0; r < 7; r++) {
                 const key = Qt.formatDate(cursor, "yyyy-MM-dd")
-                if (cursor.getTime() > today.getTime()) {
-                    // Days still to come in this week: not yet, not zero.
+                if (cursor.getTime() < start.getTime() || cursor.getTime() > today.getTime()) {
+                    // Dates outside the 63-day window are padding, not zero.
                     column.push(null)
                 } else {
                     const recorded = byDate[key] !== undefined
