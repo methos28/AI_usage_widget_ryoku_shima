@@ -435,3 +435,15 @@ Created the following local commits with normal git commit, without bypassing ho
 The shared IrisCompact.qml edits were staged by concern so Claude hold-out remains its own commit. Working files were not rewritten during this split. The final documentation/tooling commit will include README.md, AGENTS.md, PLAN.md, PROJECT_LOG.md (including this entry), the original HANDOFF-CODEX.md snapshot and the previously prepared opencode.json LSP setup. PLAN.md records the user’s local approval and leaves remote push unapproved. Historical handoff snapshots remain historical; this log and PLAN.md carry current state.
 
 All implementation code is the same tree that passed the last recorded gates. No live files were changed by this commit-only request; the known live differences remain IrisCompact.qml and widget.json from the withheld-Claude preparation. No network action, remote push or Ryoku downstream commit was performed. Confirm the final record commit ID with git log; embedding its own hash in this entry would change that hash.
+
+## 2026-11-07 14:06 IST — Deploy the committed widget for visual review
+
+The user explicitly requested updating the live widget to see the committed changes. Module HEAD is b599ff5, five local commits ahead; implementation files match HEAD and have not changed since the full passing delivery gates. Live comparison shows only IrisCompact.qml and widget.json differ, as recorded. The live Codex collector already matches the committed source. Reuse the existing passing gates for these identical files and copy only the two pending files. No new commit, push, settings rewrite or downstream port is authorised by this deployment request.
+
+### 14:06 IST — Live copy complete; shell reload still blocked
+
+Copied the committed IrisCompact.qml and widget.json to ~/.config/inir/widgets/ai-usage. diff -rq now confirms the entire live widget equals the committed source, including the Claude dropdown/settings hold-out and full 63-square heatmap. ryoku-shell reload still returns daemon not reachable at /run/user/1000/ryoku-shell.sock; the earlier direct socket check established EPERM from this execution environment. The shell is not claimed to have reloaded or the result visually verified. A terminal reload by the user remains necessary. Only this deployment record is uncommitted; source code remains at the approved commits. No new commit or remote push was performed.
+
+## 2026-11-07 14:12 IST — Commit the deployment record
+
+The user explicitly requested committing to the Git repository now. Only PROJECT_LOG.md was pending, containing the live deployment record and reload limitation. Commit these notes locally; no implementation changes, live deployment or remote push are part of this request. git diff --check passed. Tests are not rerun for this documentation-only change. The user also reconfirmed the existing plan to enable Claude later after collecting and validating real usage data; shared support remains retained for that follow-up. This entry is included in the same local documentation commit.
