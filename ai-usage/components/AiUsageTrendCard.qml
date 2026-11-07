@@ -34,8 +34,10 @@ AiUsageGlassCard {
             return range + " · " + usage.kmg(page.trend.total) + " tokens · peak "
                 + usage.kmg(page.trend.peak) + "/h"
         }
+        const window = !page.hourly && page.periodDays === 0 && buckets.length === 45
+            ? " · last 45 days" : ""
         return range + " · " + usage.kmg(page.trend.total)
-            + " tokens · peak " + usage.kmg(page.trend.peak)
+            + " tokens · peak " + usage.kmg(page.trend.peak) + window
     }
 
     Column {
@@ -49,8 +51,9 @@ AiUsageGlassCard {
             title: "Trend"
             expanded: card.expanded
             onToggled: card.expanded = !card.expanded
-            // Static subtext like the Models count; it only becomes the
-            // period control while the card is open.
+            // A control at every width: collapsed it opens the card, expanded
+            // it opens the period menu. The hit area is padded out to a
+            // comfortable target instead of the label's implicit size.
             Item {
                 id: periodText
                 width: periodLabelText.implicitWidth
@@ -67,10 +70,16 @@ AiUsageGlassCard {
                 MouseArea {
                     id: periodArea
                     anchors.fill: parent
+                    anchors.margins: -Math.round(7 * IrisStyle.density)
                     hoverEnabled: true
-                    enabled: card.expanded
-                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: card.periodMenuRequested(periodText)
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (!card.expanded) {
+                            card.expanded = true
+                            return
+                        }
+                        card.periodMenuRequested(periodText)
+                    }
                 }
             }
         }
@@ -99,20 +108,15 @@ AiUsageGlassCard {
                 readonly property int count: page.trendBuckets.length
                 readonly property int barGap: count > 30
                     ? Math.round(1 * IrisStyle.density) : Math.round(2 * IrisStyle.density)
-                // Short histories keep readable bars instead of stretching two
-                // days across the whole card. Centred, never wider than the row.
-                readonly property real slot: Math.min(
-                    (chart.width - chart.barGap * Math.max(0, count - 1)) / Math.max(1, count),
-                    Math.round(40 * IrisStyle.density))
+                // Bars share the card width, so a wider page widens them and a
+                // narrow page keeps every bucket visible.
+                readonly property real slot: (chart.width - chart.barGap
+                    * Math.max(0, count - 1)) / Math.max(1, count)
                 readonly property real step: chart.slot + chart.barGap
 
                 Row {
                     id: barRow
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: Math.min(parent.width,
-                        chart.slot * chart.count + chart.barGap * Math.max(0, chart.count - 1))
-                    height: parent.height
+                    anchors.fill: parent
                     spacing: chart.barGap
                     Repeater {
                         model: page.trendBuckets

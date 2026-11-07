@@ -47,7 +47,7 @@ Item {
                 role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: body.page.hasCostHistory ? "This month" : "API value"
+                text: "This month"
             }
         }
 
@@ -62,8 +62,7 @@ Item {
                 IrisText {
                     id: spendMetric
                     role: IrisText.Metric
-                    text: body.page.money(body.page.hasCostHistory
-                        ? body.page.monthly.current : body.page.periodCost)
+                    text: body.page.money(body.page.monthly.current)
                     font.pixelSize: Math.round(24 * IrisStyle.density)
                 }
                 IrisText {
@@ -71,20 +70,9 @@ Item {
                     role: IrisText.Meta
                     color: IrisStyle.muted
                     font.pixelSize: Math.round(10 * IrisStyle.density)
-                    text: body.page.hasCostHistory
-                        ? body.page.monthly.label
-                        : body.page.periodNoun
+                    text: body.page.monthly.label
                 }
             }
-        }
-
-        IrisText {
-            width: parent.width
-            visible: !body.page.hasCostHistory
-            role: IrisText.Meta
-            color: IrisStyle.muted
-            font.pixelSize: Math.round(10 * IrisStyle.density)
-            text: "No cost recorded in this cache."
         }
     }
 }

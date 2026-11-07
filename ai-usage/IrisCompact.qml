@@ -125,7 +125,7 @@ Item {
     // Claude and Codex are plan agents: Spending shares their Now card. OpenCode
     // keeps the standalone Spend card beside Now.
     readonly property bool planAgent: root.activeTool !== "opencode"
-    readonly property bool integratedSpend: root.planAgent && root.hasCostHistory
+    readonly property bool integratedSpend: root.planAgent
     readonly property bool hasPlan: usageModel.hasPlan
 
     // Keep the stored agent pointing at a cache that exists. One write per
@@ -210,23 +210,18 @@ Item {
             return ({ buckets: [], total: 0, peak: 1, span: 0, unit: "days" })
         // Fixed calendar slots ending today: a period shows its whole window
         // even when the cache starts a day or two ago, like the hourly view.
-        const dayMs = 86400000
         const byDate = ({})
-        let firstMs = 0
         for (const day of all) {
             const key = String(day?.date ?? "")
-            const at = new Date(key + "T12:00:00").getTime()
-            if (isNaN(at)) continue
+            if (isNaN(new Date(key + "T12:00:00").getTime())) continue
             byDate[key] = root.historyWeight(day)
-            firstMs = firstMs === 0 ? at : Math.min(firstMs, at)
         }
         const today = new Date()
         today.setHours(12, 0, 0, 0)
-        // Periods end today; All time ends today but starts at the first recorded day.
-        const count = root.periodDays > 0
-            ? root.periodDays
-            : firstMs > 0 ? Math.max(1, Math.round((today.getTime() - firstMs) / dayMs) + 1)
-                          : all.length
+        // Periods end today. All time is always the same 45-day window: a
+        // short cache draws dim empty days instead of two giant bars, and a
+        // long one never turns the chart into hairlines.
+        const count = root.periodDays > 0 ? root.periodDays : 45
         const list = []
         for (let step = count - 1; step >= 0; step--) {
             const slot = new Date(today.getTime())
@@ -234,30 +229,14 @@ Item {
             const key = Qt.formatDate(slot, "yyyy-MM-dd")
             list.push({ date: key, tokens: Number(byDate[key] ?? 0) })
         }
-        const weekly = list.length > 100
         const buckets = []
         let total = 0
         let peak = 1
-        if (!weekly) {
-            for (const day of list) {
-                const tokens = root.historyWeight(day)
-                buckets.push({ date: String(day?.date ?? ""), tokens: tokens })
-                total += tokens
-                peak = Math.max(peak, tokens)
-            }
-        } else {
-            const groups = []
-            for (let end = list.length; end > 0; end -= 7) {
-                const start = Math.max(0, end - 7)
-                let tokens = 0
-                for (let i = start; i < end; i++) tokens += root.historyWeight(list[i])
-                groups.unshift({ date: String(list[start]?.date ?? ""), tokens: tokens })
-            }
-            for (const group of groups) {
-                buckets.push(group)
-                total += group.tokens
-                peak = Math.max(peak, group.tokens)
-            }
+        for (const day of list) {
+            const tokens = root.historyWeight(day)
+            buckets.push({ date: String(day?.date ?? ""), tokens: tokens })
+            total += tokens
+            peak = Math.max(peak, tokens)
         }
         return ({ buckets: buckets, total: total, peak: peak, span: list.length, unit: "days" })
     }
