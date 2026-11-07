@@ -37,9 +37,9 @@ Item {
     // just the agents with a cache. The stored tool stays valid: if its cache
     // disappears the page falls back to the first agent that still has one
     // (OpenCode first) and writes that once.
+    // Claude stays out until its collector is validated with real usage data.
     readonly property var agentCatalog: [
         { value: "opencode", label: "OpenCode", available: availability.opencode },
-        { value: "claude", label: "Claude", available: availability.claude },
         { value: "codex", label: "Codex", available: availability.codex }
     ]
     readonly property var agentOptions: root.agentCatalog.filter(option => option.available)

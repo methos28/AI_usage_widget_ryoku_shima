@@ -3,7 +3,7 @@
     "icon": "neurology",
     "version": "1.1.3",
     "author": "Prasad Dhupkar <pmdhupkar@gmail.com>",
-    "description": "Agentic AI usage on the Shima Island: OpenCode sessions, period tokens, top models, month spending and an activity heatmap, with Claude and Codex from their own caches. Tap the agent chip to switch.",
+    "description": "Agentic AI usage on the Shima Island: OpenCode and Codex sessions, period tokens, top models, month spending and an activity heatmap from their own caches. Tap the agent chip to switch.",
     "category": "system",
     "main": "AiUsageTile.qml",
     "iris": {
@@ -30,10 +30,6 @@
                 {
                     "label": "OpenCode",
                     "value": "opencode"
-                },
-                {
-                    "label": "Claude Code",
-                    "value": "claude"
                 },
                 {
                     "label": "Codex",
