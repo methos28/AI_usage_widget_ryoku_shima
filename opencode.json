@@ -1,0 +1,42 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    "PROJECT_LOG.md",
+    "PLAN.md"
+  ],
+  "lsp": {
+    "qml": {
+      "command": [
+        "/usr/lib/qt6/bin/qmlls",
+        "--no-cmake-calls",
+        "-I",
+        "/usr/lib/qt6/qml",
+        "-I",
+        "/home/methos/.config/quickshell"
+      ],
+      "extensions": [".qml"]
+    },
+    "python": {
+      "command": [
+        "/home/methos/.local/bin/pyright-langserver",
+        "--stdio"
+      ],
+      "extensions": [".py", ".pyi"]
+    },
+    "json": {
+      "command": [
+        "/home/methos/.local/bin/vscode-json-language-server",
+        "--stdio"
+      ],
+      "extensions": [".json", ".jsonc"]
+    },
+    "bash": {
+      "command": [
+        "/home/methos/.local/bin/bash-language-server",
+        "start"
+      ],
+      "extensions": [".sh", ".bash"]
+    }
+  }
+}

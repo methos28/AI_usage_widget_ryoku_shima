@@ -2,9 +2,12 @@
 
 A dashboard for your coding agent, built into the Ryoku **Shima** Island
 Desktop page. It shows live sessions, tokens for the period you pick, your top
-models and an activity heatmap. OpenCode, Claude Code and Codex are selectable
+models and an activity heatmap. OpenCode and Codex are selectable
 from the chip at the top of the card; each one is read from its own local
 cache. No account and no network call.
+
+Claude is hidden from the dropdown and widget settings until its collector is
+validated with real usage data.
 
 **Install time:** about 10 minutes. **Skills needed:** copy and paste.
 
@@ -107,7 +110,9 @@ session to a database update that was only a migration touch.
 ```bash
 mkdir -p ~/.local/bin
 cp ~/Downloads/opencode-ryoku-shima/collector/opencode-usage-v2 ~/.local/bin/
+cp ~/Downloads/opencode-ryoku-shima/collector/codex-usage ~/.local/bin/
 chmod +x ~/.local/bin/opencode-usage-v2
+chmod +x ~/.local/bin/codex-usage
 ```
 
 Now tell the Ryoku timer to run it. Create this file:
@@ -118,7 +123,7 @@ cat > ~/.config/systemd/user/ryoku-ai-usage.service.d/override.conf <<'EOF'
 [Service]
 ExecStart=
 ExecStart=-/usr/bin/claude-usage
-ExecStart=-/usr/bin/codex-usage
+ExecStart=-%h/.local/bin/codex-usage
 ExecStart=-%h/.local/bin/opencode-usage-v2
 EOF
 systemctl --user daemon-reload
@@ -174,7 +179,7 @@ The card is under the date and agenda.
 
 The module's card width defaults to 480 px, matched by a 520 px Island page.
 The card also fits the default 440 px page untouched: the layout clamps to the
-page body, and the activity heatmap needs 179 px, so nothing overflows. A
+page body, and the activity heatmap needs 123 px at default density. A
 wider page gives the top row more room, nothing more.
 
 1. In Shima Settings: **Island → Pages**.
@@ -217,7 +222,7 @@ page changes material.
 | **Spending** | This month's API cost from the daily cost buckets, with the month name. OpenCode shows it as its own card beside Now; Claude and Codex show it inside Now. Hidden when the cache records no cost. |
 | **Trend** | Bars for the chosen period, cache reads included. Today and Last 24 hours are hourly; the rest are daily (weekly above 100 buckets). Hover a bar to read it. |
 | **Models** | The top three models of the period: cache-inclusive total, share meter, and `I… O… R… CR…` with the cache hit rate. |
-| **Activity** | A heatmap of every recorded day, plus the all-time total (cache reads included), active days and the busiest day. The flame is your current streak; hover it. |
+| **Activity** | A full 9 × 7 heatmap of the last 63 days, plus the all-time total (cache reads included), active days and the busiest day. The flame is your current streak; hover it. |
 
 ---
 
@@ -244,7 +249,7 @@ menu in the card; the rest are for edge cases and you rarely touch them.
 
 | Key | Default | What it does |
 |---|---|---|
-| `tool` | `opencode` | Which agent to read: `opencode`, `claude` or `codex`. The chip at the top of the card writes this key. |
+| `tool` | `opencode` | Which agent to read: `opencode` or `codex`. The chip at the top of the card writes this key. |
 | `moduleWidth` | `480` | Card width in px, clamped to the page body. |
 | `topModels` | `3` | Rows in the Models card. Maximum 3. |
 | `period` | `30` | `today`, `24h`, `7`, `30` or `all`. The menu writes it. |
@@ -273,26 +278,16 @@ available agent, OpenCode first.
 - The collector takes a lock, writes atomically and keeps day and hour history
   append-only, so a published total never decreases.
 
-### Other agents
+### Codex and deferred Claude support
 
-`tool: claude` reads `~/.cache/claude-usage.json`. `tool: codex` reads
-`~/.cache/codex-usage.json`. Both are written by the stock Ryoku collectors.
+Codex reads `~/.cache/codex-usage.json`, written by the installed repository
+collector. It supplies account quota windows, local token history, model rows
+and sessions. Codex needs an existing signed-in CLI account.
 
-Those collectors are lighter than the OpenCode one: they write the 5h/7d quota,
-today's tokens and a seven-day `_recent_days` list, but no long history, model
-rows or session list. On Claude and Codex the Now, Models and Spending cards
-stay empty, and Trend and Activity cover seven days. The quota windows and
-today's total are accurate.
-
-To try the switch without those CLIs installed, run
-`python3 test/make-demo-caches.py`. It writes believable demo caches marked
-`"_source": "demo"`. Remove them with
-`rm ~/.cache/claude-usage.json ~/.cache/codex-usage.json`.
-
-`claude-usage` asks Anthropic's usage endpoint with the OAuth login Claude Code
-already stored; it sends no prompts. It cannot write a cache until Claude Code
-has been used and `~/.claude/.credentials.json` exists. Codex likewise needs
-`~/.codex` from a Codex run.
+Claude remains hidden from both agent selectors pending collector enrichment
+and testing with real usage data. Shared cache-reading support and demo helpers
+remain in the source for that follow-up. Creating a Claude cache does not add
+Claude to the dropdown.
 
 ---
 
@@ -343,14 +338,19 @@ ai-usage/UsageModel.qml         cache reader, ticker, session filter
 ai-usage/AiUsageTile.qml        the same numbers as a plain desktop tile
 ai-usage/widget.json            manifest; iris.main is what Shima loads
 collector/opencode-usage-v2     the collector that writes the cache
+collector/codex-usage           Codex quotas and deduplicated rollout token history
 systemd/                        the Ryoku timer drop-in
 install.sh                      one-command install
 test/test_collector.py          collector fixtures
+test/test_codex_usage.py        Codex replay, plan-window and reset fixtures
 test/cache_contract.py          live cache contract check
 test/lint.sh                    QML and Python static checks
 ```
 
 **Test**
+
+The test suite needs Python 3, Node.js (to execute the widget's JavaScript
+parsers), and the QML lint tools supplied by Ryoku.
 
 ```bash
 ./test/run.sh
@@ -361,6 +361,13 @@ against a temp cache and checks the v2 fields, residual true-up, append-only
 history and lock. `cache_contract.py` runs the collector and asserts the live
 cache contract: shell keys, `_days` order, `_hours` length, `_periods`
 completeness and nesting, model rows, `_sessions` newest-first.
+
+`test_codex_usage.py` checks archive moves, copied and replayed rollouts,
+activity-state migration, plan changes, and server-reported quota windows.
+Codex window lengths and reset times come from the account response. A Free
+account that reports 43,200 minutes shows `30d`; the widget does not infer a
+reset schedule from the plan name. Local token activity does not determine
+the account's quota percentages.
 
 **Rules**
 
