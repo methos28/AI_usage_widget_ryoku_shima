@@ -6,6 +6,10 @@ the latest module, collectors, tests and updated README/changelog to
 contract and QML gates pass. The Codex collector matches the reviewed Ryoku
 fork, while standalone collector lookup and manual installation are retained.
 Local PR drafts and audit reports are outside this publication.
+Published application revision: `1f4f3d4628c28431eb9ed8af41419bb7c14b62b3`.
+Normal commit/push succeeded, GitHub's remote head and README blob were
+verified, and the repository is public. The publication record is included
+in the following documentation commit.
 
 History: module main was previously pushed through 47b9395. The user recreated
 `methos28/ryoku` on 2026-11-07; the module was re-landed directly on its
