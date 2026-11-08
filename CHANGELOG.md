@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Add Codex Est. Spending with private monthly ledgers, saved daily public
+  prices, deduplicated usage and visible incomplete or stale coverage.
+- Preserve missing historical prices as unpriced; estimates do not represent
+  bills, wallet balances, top-ups or additional subscription charges.
+- Harden local Codex RPC reads, process cleanup, error redaction and atomic
+  private cache writes. Suppress previous subscription quotas after switching
+  to an API-key or Bedrock account.
+- Fix desktop-tile bindings, the menu icon import, saved-agent fallback and
+  compact caption/spending alignment. Share the dropdown component.
+- Add isolated cache, quota, security, spending and QML regressions, with 44
+  standalone tests plus the cache contract.
+- Update installation and data-source documentation for the current collectors.
+
 ## 1.1.3
 
 - Removed the stale-data line from the Limits card.

@@ -4,7 +4,11 @@ A dashboard for your coding agent, built into the Ryoku **Shima** Island
 Desktop page. It shows live sessions, tokens for the period you pick, your top
 models and an activity heatmap. OpenCode and Codex are selectable
 from the chip at the top of the card; each one is read from its own local
-cache. No account and no network call.
+cache. Codex quota refresh uses its existing CLI login, and estimated spending
+downloads public model prices without sending login credentials.
+
+This repository provides the standalone installation. The built-in Ryoku
+integration is proposed in [PR #757](https://github.com/Ryoku-dev/ryoku/pull/757).
 
 Claude is hidden from the dropdown and widget settings until its collector is
 validated with real usage data.
@@ -13,6 +17,10 @@ validated with real usage data.
 
 
 # Widget Preview
+
+Screenshots include earlier layouts. The current agent menu offers OpenCode
+and Codex, and the Codex spending title is **Est. Spending**.
+
 Collapsed Sections : 
 
 <img width="562" height="327" alt="image" src="https://github.com/user-attachments/assets/cc38a1d2-f6d5-4b10-9ff4-e4620c8565d5" />
@@ -33,12 +41,11 @@ Expanded Sections :
 
 ## If you only read one thing
 
-1. `git clone https://github.com/methos28/opencode_widget_ryoku_shima.git`
+1. `git clone https://github.com/methos28/AI_usage_widget_ryoku_shima.git`
 2. Run `./install.sh` from the clone. It copies the widget, the collector and
    the systemd drop-in, then reloads the shell.
-3. Or follow the manual steps below.
-5. **Shima Settings → Island → Desktop page → Your modules** → tick **AI usage**.
-6. Optional: **Shima Settings → Island → Pages → Page width** → **520** for
+3. **Shima Settings → Island → Desktop page → Your modules** → tick **AI usage**.
+4. Optional: **Shima Settings → Island → Pages → Page width** → **520** for
    more room. The default 440 px page fits the card as it is.
 
 Done. The long version, with checks after every step, is next.
@@ -51,8 +58,9 @@ You need:
 
 - **Ryoku Linux** with the Shima (iris) bar. Hover the clock pill at the top
   centre: it must expand into a panel with page buttons.
-- **OpenCode** installed and used at least once, so its database exists at
-  `~/.local/share/opencode/opencode.db`.
+- **OpenCode or Codex** installed and used at least once. OpenCode normally
+  stores usage at `~/.local/share/opencode/opencode.db`; Codex records local
+  session rollouts. Codex plan-limit bars need an existing ChatGPT login.
 - **Python 3.10 or newer** (`python3 --version`). The collector uses only the
   standard library, so there is nothing to pip install.
 - **`git`** for the clone below. No GitHub account is needed; a ZIP download
@@ -74,7 +82,7 @@ LICENSE                GPL-3.0
 ### 1. Clone the repository (1 minute)
 
 ```bash
-git clone https://github.com/methos28/opencode_widget_ryoku_shima.git \
+git clone https://github.com/methos28/AI_usage_widget_ryoku_shima.git \
   ~/Downloads/opencode-ryoku-shima
 ```
 
@@ -98,9 +106,9 @@ updates.
 
 ### 3. Copy the collector (2 minutes)
 
-The stock Ryoku collector keeps seven days of OpenCode history. This module's
-Trend, Models and Now cards want more: daily history, per-period model totals,
-live sessions and recorded cost. That is what `opencode-usage-v2` adds.
+The repository collectors provide the dashboard's daily history, per-period
+model totals, session activity and recorded costs or estimates. OpenCode uses
+`opencode-usage-v2`; Codex uses the existing `codex-usage` script extended here.
 
 History comes from OpenCode's per-message store, so a session that runs across
 days is credited to each day it actually ran. Session totals true up the
@@ -130,20 +138,24 @@ systemctl --user daemon-reload
 systemctl --user start ryoku-ai-usage.service
 ```
 
-✅ **Check:** this prints `True True`:
+✅ **Check:** the cache for an agent you have used should print `True True`:
 
 ```bash
 python3 - <<'PY'
-import json, os
-d = json.load(open(os.path.expanduser("~/.cache/opencode-usage.json")))
-print("_periods" in d, "_sessions" in d)
+import json
+from pathlib import Path
+for tool in ("opencode", "codex"):
+    path = Path.home() / ".cache" / (tool + "-usage.json")
+    if path.exists():
+        data = json.loads(path.read_text())
+        print(tool, "_periods" in data, "_sessions" in data)
 PY
 ```
 
 `False` on the left means the new collector did not run. See Troubleshooting.
 
-> Skipped this step? The module still loads, but Models, Spending and the
-> session list stay empty and the Trend only covers the last seven days.
+> An older collector may omit the history, sessions or estimated-spending
+> fields. Install both repository collectors to use the current dashboard.
 
 > The `ryoku-ai-usage.timer` unit ships with the optional `ryoku-rashin`
 > package. If `systemctl --user status ryoku-ai-usage.timer` says it does not
@@ -204,8 +216,8 @@ the top row shows two cards side by side.
 - **Change the period:** open Trend, click the period text, pick one.
 - **Refresh:** nothing to do. The collector runs again every minute while the
   page is open.
-- **Collapsed rows are read-only:** the period text only works when Trend is
-  open. Clicking a closed row opens it.
+- **Change the period from the header:** if Trend is collapsed, the first
+  click expands it. Click the period label again to open its menu.
 
 ---
 
@@ -217,10 +229,10 @@ page changes material.
 
 | Card | What it tells you |
 |---|---|
-| **Now** | The agent, when it last wrote, and up to two running sessions: title, how long it has run, its tokens. The dot is green and breathes while a session runs. On Claude and Codex, this month's Spending sits in the card's empty bottom area. |
-| **Limits** | Only appears when the cache reports a real provider plan: today's tokens plus the 5h/7d windows with meters. |
-| **Spending** | This month's API cost from the daily cost buckets, with the month name. OpenCode shows it as its own card beside Now; Claude and Codex show it inside Now. Hidden when the cache records no cost. |
-| **Trend** | Bars for the chosen period, cache reads included. Today and Last 24 hours are hourly; the rest are daily (weekly above 100 buckets). Hover a bar to read it. |
+| **Now / Sessions** | Session titles, recorded tokens and activity, with up to two running sessions. The dot breathes while a session runs. Codex's monthly estimate sits below its sessions. |
+| **Limits** | Today's local tokens and server-reported ChatGPT quota windows with reset times. Window lengths follow the response, rather than an assumed plan schedule. API-key request/token limits are not collected. |
+| **Spending / Est. Spending** | OpenCode shows recorded monthly local costs. Codex shows a monthly API-equivalent estimate, with a coverage marker and tooltip. An unavailable estimate displays an em dash. |
+| **Trend** | Bars for the chosen period, cache reads included. Today and Last 24 hours are hourly; other periods use fixed 7/30/45-day windows. Hover a bar to read it. |
 | **Models** | The top three models of the period: cache-inclusive total, share meter, and `I… O… R… CR…` with the cache hit rate. |
 | **Activity** | A full 9 × 7 heatmap of the last 63 days, plus the all-time total (cache reads included), active days and the busiest day. The flame is your current streak; hover it. |
 
@@ -234,10 +246,10 @@ Five options, one per line in the menu:
 2. **Last 24 hours** - rolling 24 clock hours.
 3. **Last 7 days**
 4. **Last 30 days**
-5. **All time**
+5. **All time** - a fixed 45-day trend window, not lifetime history.
 
 The period drives Now, Trend and Models. Spending always shows this month;
-Activity always shows the whole history.
+Activity always shows the last 63 days.
 
 ---
 
@@ -267,10 +279,15 @@ available agent, OpenCode first.
 
 - `~/.cache/opencode-usage.json` - written by the collector. The module only
   reads it.
-- The collector reads OpenCode's own local database
-  (`~/.local/share/opencode/opencode.db`) read-only. It never reads prompts or
-  replies, only token counts, models, times, cost and session titles.
-- No network. No sign-in. Nothing leaves the machine.
+- OpenCode's collector reads its local store read-only and publishes usage
+  metadata such as token counts, models, timestamps, recorded cost and titles.
+- Codex reads local session rollouts for tokens, models and sessions. Its
+  authenticated app-server supplies quota windows over private local stdio.
+  Codex handles its saved login; the collector does not open the auth file or
+  publish the account response.
+- Estimated spending downloads the public OpenAI model catalog from
+  `https://models.dev/api.json`. This request carries no API key, login token
+  or local usage data. Codex's own quota request requires network access.
 - Freshness: the cache is rewritten every minute while the page is open and
   every five minutes by the systemd timer.
 - Refresh runs the collector directly for OpenCode; the Ryoku service is only a
@@ -278,11 +295,31 @@ available agent, OpenCode first.
 - The collector takes a lock, writes atomically and keeps day and hour history
   append-only, so a published total never decreases.
 
-### Codex and deferred Claude support
+### Codex spending estimates and login support
 
 Codex reads `~/.cache/codex-usage.json`, written by the installed repository
 collector. It supplies account quota windows, local token history, model rows
-and sessions. Codex needs an existing signed-in CLI account.
+and sessions. A ChatGPT browser or device-code login supports plan quota
+windows. API-key and Bedrock accounts do not reuse historical ChatGPT limits;
+Platform API request/token limits are not collected. Other credential modes
+have not all been verified with real accounts.
+
+**Est. Spending is a Standard API-equivalent token estimate, not a bill,
+wallet balance or additional Plus charge.** It does not import billing history
+or track top-ups. Session token categories are priced using saved daily model
+rates, with duplicate events counted once.
+
+The existing collector keeps private monthly ledgers at
+`~/.local/state/ai-usage/spending-YYYY-MM.json` (or under `XDG_STATE_HOME`).
+Saved rates for earlier days are retained. Days before the first saved price
+snapshot remain unpriced instead of receiving today's rates retroactively.
+Unknown model prices or unsupported service tiers are also excluded.
+
+`This month*` and the tooltip identify incomplete or stale coverage. Offline
+refreshes can use previously saved prices, marked stale. If no priced usage is
+available, the amount displays an em dash. Hover the spending title for details.
+
+### Deferred Claude support
 
 Claude remains hidden from both agent selectors pending collector enrichment
 and testing with real usage data. Shared cache-reading support and demo helpers
@@ -297,11 +334,12 @@ Claude to the dropdown.
 |---|---|
 | No card on the Desktop page | The module is off. Shima Settings → Island → Desktop page → Your modules → tick AI usage. |
 | `No opencode usage yet` | Open OpenCode once, then wait a minute. Or run `systemctl --user start ryoku-ai-usage.service`. |
-| Models / Spending empty | The old collector is running. Redo step 3 and check `_periods` prints `True`. |
+| Models or sessions empty | Check that the selected agent has recorded usage, then verify the repository collector and `_periods` cache field from step 3. |
 | Always `no session running` | Same cause: the cache has no `_sessions`. Redo step 3. |
 | Numbers frozen | The page is closed, so the minute refresh is idle. Reopen it, or start the service by hand. |
 | Card looks clipped | Page too narrow. Shima Settings → Island → Pages → Page width 520 (the default 440 fits; this is for extra room). |
-| Period menu does not open | Trend is closed. Click the row first; the period text works only when open. |
+| Period menu does not open | Click the period label at the right of the Trend header. If it stays unresponsive, reload the shell. |
+| Codex spending has an asterisk or em dash | Hover the title. Some dates/models may lack saved prices, or the public price refresh may be unavailable. |
 | Something broke after an update | `ryoku-shell reload`. If it persists, check the log (below) and restore the last backup. |
 
 Log, always the first place to look:
@@ -316,14 +354,13 @@ tail -50 ~/.local/state/ryoku/surfaces/shell.log
 
 1. In Shima Settings, remove it from **Island → Desktop page → Your modules**.
 2. Delete the folder: `rm -rf ~/.config/inir/widgets/ai-usage`
-3. Optional, remove the collector:
-   `rm ~/.local/bin/opencode-usage-v2` and
-   `rm -r ~/.config/systemd/user/ryoku-ai-usage.service.d`, then
+3. Optional, remove the repository collectors:
+   `rm ~/.local/bin/opencode-usage-v2 ~/.local/bin/codex-usage` and
+   `rm ~/.config/systemd/user/ryoku-ai-usage.service.d/override.conf`, then
    `systemctl --user daemon-reload`.
 4. `ryoku-shell reload`.
 
-Your usage cache is untouched. Delete `~/.cache/opencode-usage.json` if you
-want it gone too.
+Usage caches and persistent spending ledgers are retained after uninstall.
 
 ---
 
@@ -343,7 +380,8 @@ systemd/                        the Ryoku timer drop-in
 install.sh                      one-command install
 test/test_collector.py          collector fixtures
 test/test_codex_usage.py        Codex replay, plan-window and reset fixtures
-test/cache_contract.py          live cache contract check
+test/test_widget.py             calendar, quota, spending and QML component checks
+test/cache_contract.py          isolated cache contract check
 test/lint.sh                    QML and Python static checks
 ```
 
@@ -360,14 +398,23 @@ parsers), and the QML lint tools supplied by Ryoku.
 against a temp cache and checks the v2 fields, residual true-up, append-only
 history and lock. `cache_contract.py` runs the collector and asserts the live
 cache contract: shell keys, `_days` order, `_hours` length, `_periods`
-completeness and nesting, model rows, `_sessions` newest-first.
+completeness and nesting, model rows, `_sessions` newest-first. It builds its
+own SQLite fixtures rather than depending on the caller's account.
 
 `test_codex_usage.py` checks archive moves, copied and replayed rollouts,
 activity-state migration, plan changes, and server-reported quota windows.
 Codex window lengths and reset times come from the account response. A Free
 account that reports 43,200 minutes shows `30d`; the widget does not infer a
 reset schedule from the plan name. Local token activity does not determine
-the account's quota percentages.
+the account's quota percentages. It also covers daily price snapshots, missing
+historical prices, offline fallback, event deduplication, cache permissions,
+RPC cleanup/redaction and account-type changes.
+
+The standalone suite contains 44 tests: six OpenCode, 32 Codex and six widget
+tests, plus the cache contract. QML compilation checks require Quickshell and
+Ryoku imports. The live preview was checked on stable Ryoku; full runtime
+validation on an unstable installation remains separate from these source
+checks. The host-side built-in discovery changes are in the linked Ryoku PR.
 
 **Rules**
 

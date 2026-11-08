@@ -49,9 +49,15 @@ Item {
     // One agent means nothing to switch to: the chip stays, the chevron goes.
     readonly property bool agentSwitchable: availability.ready && root.agentOptions.length > 1
     // No cache at all: keep the card and name OpenCode, like a fresh install,
-    // instead of an empty menu and a chip with nothing behind it.
-    readonly property string activeTool: availability.ready && !root.hasAnyAgent
-        ? "opencode" : root.tool
+    // instead of an empty menu and a chip with nothing behind it. A stored
+    // tool this build does not offer (Claude while it is held back) falls to
+    // the first agent that has a cache, without waiting for the write back.
+    readonly property string activeTool: {
+        if (!availability.ready) return root.tool
+        if (!root.hasAnyAgent) return "opencode"
+        if (root.toolAvailable) return root.tool
+        return String(root.agentOptions[0]?.value ?? "opencode")
+    }
     readonly property string toolLabel: root.labels[root.activeTool] ?? root.activeTool
     property bool _fallbackWritten: false
 
@@ -82,7 +88,6 @@ Item {
         const option = root.periodOptions.find(entry => entry.value === root.periodKey)
         return option ? option.label : "Last 30 days"
     }
-    readonly property string periodNoun: root.periodLabel.toLowerCase()
 
     readonly property int pad: Math.round(10 * IrisStyle.density)
     readonly property int gap: Math.round(10 * IrisStyle.density)
@@ -104,19 +109,36 @@ Item {
     // Everything on the page follows this one period.
     readonly property var activePeriod: usageModel.period(root.periodKey)
     readonly property var periodModels: root.activePeriod ? root.activePeriod.models : []
-    readonly property int periodTokens: root.activePeriod
-        ? Number(root.activePeriod.tokens) : usageModel.today
-    readonly property real periodCacheRate: root.activePeriod
-        ? Number(root.activePeriod.cacheRate) : 0
     // This month's spend from the day buckets (cost is per assistant turn).
     readonly property var monthly: {
         const key = Qt.formatDate(new Date(), "yyyy-MM")
+        if (root.activeTool === "codex") {
+            const estimate = usageModel.spending
+            const available = estimate?.kind === "api-equivalent" && estimate?.month === key
+                && estimate?.amount !== null && estimate?.amount !== undefined
+                && Number.isFinite(Number(estimate.amount)) && Number(estimate.amount) >= 0
+            return ({ current: available ? Number(estimate.amount) : 0,
+                label: root.monthLabel(key), available: available,
+                partial: estimate?.partial === true, stale: estimate?.stale_prices === true })
+        }
         let total = 0
         for (const day of usageModel.days) {
             if (String(day?.date ?? "").slice(0, 7) === key)
                 total += Number(day?.cost ?? 0)
         }
         return ({ current: total, label: root.monthLabel(key) })
+    }
+    readonly property string spendHelp: {
+        if (root.activeTool !== "codex") return "This month's recorded usage cost."
+        const estimate = usageModel.spending
+        let text = "Estimated cost at standard API rates.\nNot a bill or wallet balance."
+        if (usageModel.plan.toLowerCase() === "plus")
+            text += "\nYour Plus usage is covered by your plan."
+        if (root.monthly.partial) text += "\nOnly days with saved prices are included."
+        if (estimate?.price_date) text += "\nLatest saved prices: " + estimate.price_date + "."
+        if (root.monthly.stale) text += "\nPrice refresh pending; saved rates are in use."
+        if (!root.monthly.available) text += "\nNo priced usage is available yet."
+        return text
     }
     readonly property bool hasCostHistory: usageModel.days.some(day => Number(day?.cost ?? 0) > 0)
     readonly property real periodCost: root.activePeriod
@@ -446,156 +468,31 @@ Item {
         }
     }
 
-    // ── agent menu ───────────────────────────────────────────────────────
+    // One dropdown implementation serves both pickers.
     MouseArea {
         anchors.fill: parent
-        visible: agentMenu.open
+        visible: agentMenu.open || periodMenu.open
         z: 88
-        onClicked: agentMenu.open = false
+        onClicked: {
+            agentMenu.open = false
+            periodMenu.open = false
+        }
     }
-    IrisSurface {
+    AiUsageMenu {
         id: agentMenu
-        property bool open: false
-        visible: open
         z: 92
-        raised: true
-        outlined: true
-        width: Math.round(172 * IrisStyle.density)
-        height: agentColumn.implicitHeight + 2 * Math.round(6 * IrisStyle.density)
-        radius: IrisStyle.radiusTile
-        Rectangle {
-            anchors.fill: parent
-            radius: agentMenu.radius
-            color: "transparent"
-            border.width: 1
-            border.color: IrisStyle.borderStrong
-        }
-        Column {
-            id: agentColumn
-            x: Math.round(6 * IrisStyle.density)
-            y: Math.round(6 * IrisStyle.density)
-            width: agentMenu.width - 2 * Math.round(6 * IrisStyle.density)
-            Repeater {
-                model: root.agentOptions
-                Item {
-                    id: agentRow
-                    required property var modelData
-                    width: agentColumn.width
-                    height: Math.round(30 * IrisStyle.density)
-                    readonly property bool current: String(modelData?.value ?? "") === root.tool
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: IrisStyle.radiusSmall
-                        color: agentRow.current || agentArea.containsMouse
-                            ? IrisStyle.fillHover : "transparent"
-                    }
-                    IrisText {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Math.round(9 * IrisStyle.density)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: String(modelData?.label ?? "")
-                        font.pixelSize: IrisStyle.typeLabel
-                        font.weight: IrisStyle.weight(agentRow.current ? Font.DemiBold : Font.Medium)
-                        color: agentRow.current ? IrisStyle.accent : IrisStyle.text
-                    }
-                    MaterialSymbol {
-                        anchors.right: parent.right
-                        anchors.rightMargin: Math.round(9 * IrisStyle.density)
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: agentRow.current
-                        text: "check"
-                        iconSize: Math.round(14 * IrisStyle.density)
-                        color: IrisStyle.accent
-                    }
-                    MouseArea {
-                        id: agentArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            CustomWidgets.setConfigValue("ai-usage", "tool",
-                                String(agentRow.modelData?.value ?? "opencode"))
-                            agentMenu.open = false
-                        }
-                    }
-                }
-            }
-        }
+        options: root.agentOptions
+        currentValue: root.tool
+        onPicked: value => CustomWidgets.setConfigValue("ai-usage", "tool", value)
     }
-
-    // ── period menu ──────────────────────────────────────────────────────
-    MouseArea {
-        anchors.fill: parent
-        visible: periodMenu.open
-        z: 90
-        onClicked: periodMenu.open = false
-    }
-    IrisSurface {
+    AiUsageMenu {
         id: periodMenu
-        property bool open: false
-        visible: open
         z: 91
-        raised: true
-        outlined: true
-        width: Math.round(158 * IrisStyle.density)
-        height: menuColumn.implicitHeight + 2 * Math.round(6 * IrisStyle.density)
-        radius: IrisStyle.radiusTile
-        Rectangle {
-            anchors.fill: parent
-            radius: periodMenu.radius
-            color: "transparent"
-            border.width: 1
-            border.color: IrisStyle.borderStrong
-        }
-        Column {
-            id: menuColumn
-            x: Math.round(6 * IrisStyle.density)
-            y: Math.round(6 * IrisStyle.density)
-            width: periodMenu.width - 2 * Math.round(6 * IrisStyle.density)
-            Repeater {
-                model: root.periodOptions
-                Item {
-                    id: menuRow
-                    required property var modelData
-                    width: menuColumn.width
-                    height: Math.round(28 * IrisStyle.density)
-                    readonly property bool current: menuRow.modelData.value === root.periodKey
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: IrisStyle.radiusSmall
-                        color: rowArea.containsMouse ? IrisStyle.fillHover : "transparent"
-                    }
-                    IrisText {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Math.round(8 * IrisStyle.density)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: menuRow.modelData.label
-                        font.pixelSize: IrisStyle.typeLabel
-                        color: menuRow.current ? IrisStyle.accent : IrisStyle.text
-                    }
-                    MaterialSymbol {
-                        anchors.right: parent.right
-                        anchors.rightMargin: Math.round(8 * IrisStyle.density)
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: menuRow.current
-                        text: "check"
-                        iconSize: Math.round(14 * IrisStyle.density)
-                        color: IrisStyle.accent
-                    }
-                    MouseArea {
-                        id: rowArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            CustomWidgets.setConfigValue("ai-usage", "period",
-                                String(menuRow.modelData.value))
-                            periodMenu.open = false
-                        }
-                    }
-                }
-            }
-        }
+        menuWidth: 158
+        rowHeight: Math.round(28 * IrisStyle.density)
+        boldCurrent: false
+        options: root.periodOptions
+        currentValue: root.periodKey
+        onPicked: value => CustomWidgets.setConfigValue("ai-usage", "period", value)
     }
 }

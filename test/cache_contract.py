@@ -7,6 +7,8 @@ contract IrisCompact.qml and the shell's own AI panel rely on. Exit code 0 = eve
     python3 test/cache_contract.py
 """
 import json
+import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -14,7 +16,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 COLLECTOR = Path(__file__).resolve().parent.parent / "collector" / "opencode-usage-v2"
-CACHE = Path(tempfile.mkdtemp(prefix="ai-usage-contract-")) / "usage.json"
+WORK = tempfile.TemporaryDirectory(prefix="ai-usage-contract-")
+CACHE = Path(WORK.name) / "usage.json"
 
 failures = []
 
@@ -25,8 +28,40 @@ def check(condition, message):
 
 
 def main():
+    # A clean CI runner has no OpenCode account or store. Build the same cache
+    # contract from isolated message/session rows rather than the caller's data.
+    data_dir = Path(WORK.name) / "opencode"
+    data_dir.mkdir()
+    now_ms = int(datetime.now().timestamp() * 1000)
+    with sqlite3.connect(data_dir / "opencode.db") as db:
+        db.execute("create table session_v2 (id text primary key, title text, "
+                   "directory text, time_created integer, time_updated integer, "
+                   "time_idle integer, time_busy integer, tokens_input integer, "
+                   "tokens_output integer, tokens_reasoning integer, "
+                   "tokens_cache_read integer, tokens_cache_write integer, "
+                   "cost real, model text)")
+        db.execute("create table session_message (id text primary key, session_id text, "
+                   "type text, time_created integer, time_updated integer, data text)")
+        for index, age_ms in enumerate((3600000, 0)):
+            sid = f"contract-session-{index}"
+            stamp = now_ms - age_ms
+            model = {"id": f"contract-model-{index}", "providerID": "fixture"}
+            inp = 100 * (index + 1)
+            db.execute("insert into session_v2 values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                       (sid, "Contract fixture", "/fixture", stamp, stamp,
+                        stamp if index == 0 else 0, stamp - 1, inp, 20, 5,
+                        200, 10, 0.01, json.dumps(model)))
+            message = {"role": "assistant", "model": model,
+                       "tokens": {"input": inp, "output": 20, "reasoning": 5,
+                                  "cache": {"read": 200, "write": 10}},
+                       "time": {"created": stamp, "completed": stamp}, "cost": 0.01}
+            db.execute("insert into session_message values (?,?,?,?,?,?)",
+                       (f"message-{index}", sid, "assistant", stamp, stamp,
+                        json.dumps(message)))
     if COLLECTOR.exists():
-        subprocess.run([str(COLLECTOR), "--cache", str(CACHE)], check=True)
+        env = dict(os.environ, HOME=str(Path(WORK.name) / "home"),
+                   OPENCODE_DATA_DIR=str(data_dir))
+        subprocess.run([str(COLLECTOR), "--cache", str(CACHE)], check=True, env=env)
 
     check(CACHE.exists(), f"cache missing: {CACHE}")
     if not CACHE.exists():
