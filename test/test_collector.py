@@ -18,7 +18,8 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-COLLECTOR = Path(__file__).resolve().parent.parent / "collector" / "opencode-usage-v2"
+COLLECTOR = Path(os.environ.get('OPENCODE_USAGE_TEST_COLLECTOR',
+                              Path(__file__).resolve().parent.parent / "collector" / "opencode-usage-v2"))
 
 
 def now_ms() -> int:
@@ -159,7 +160,7 @@ class CollectorTest(unittest.TestCase):
         out = subprocess.run(
             [sys.executable, str(COLLECTOR), "--version"],
             capture_output=True, text=True, check=True)
-        self.assertIn("opencode-usage-v2", out.stdout)
+        self.assertIn(COLLECTOR.name, out.stdout)
 
     def test_v2_store_fields(self) -> None:
         write_v2_store(self.data)
@@ -167,7 +168,7 @@ class CollectorTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = self.read_cache()
 
-        self.assertEqual(data["_source"], "storage+v2")
+        self.assertEqual(data["_source"], os.environ.get('OPENCODE_USAGE_TEST_SOURCE', 'storage+v2'))
         self.assertGreater(data["_today_tokens"], 0)
         self.assertEqual(len(data["_hours"]), 48)
         self.assertIn("today", data["_periods"])

@@ -415,3 +415,15 @@ Primary source and live widget are updated; fork checkout is clean.
 The user accepted staying on stable and authorized the title change. Use saved names from Codex session_index.jsonl, with existing prompt/directory fallbacks. Primary and ai-usage-dashboard now adopt upstream visible-only 15-second collection and 120-second quota RPC caching; these supersede the earlier background-refresh requirement for this delivery. The absent old custom install will be restored through the supported user-owned widget path after gates. No commit, push, package update or channel switch is requested. Validation and live verification are pending.
 
 Saved Codex session names are now delivered and visually verified. All 204 primary cases passed across the full run and the explicitly enabled shared-host follow-up; 56 fork collector cases and QML gates pass. The supported user-owned copy is active on stable. Changes remain uncommitted and unpushed. See the latest PROJECT_LOG.md entry and /home/methos/.local/share/ryoku/ai-usage-backup/codex-session-titles-20261117-122321.
+
+## Current audit result (2026-11-17)
+
+The saved-title delivery is committed locally in primary 37db05d and fork aa11db313, with nothing pushed. The current-code audit reproduced ten edge cases across five areas; no fixes were applied. See BUG_AUDIT_2026-11-17.md and its evidence directory. The existing 204-case baseline passes including the separately enabled shared-host case. Future work should add each reproduction as a permanent regression and fix only the user-approved scope.
+
+## Feature publication synchronized (2026-11-17)
+
+Published e7297aec6 to methos28/ryoku:ai-usage-dashboard after merging official unstable-dev 0389a5e. GitHub verifies two commits ahead, zero behind and only three feature paths different. Fork working tree is clean; the existing title feature is published, while all bug-audit fixes remain pending. The user explicitly chose the existing ai-usage-dashboard name. See the latest log and evidence/branch-sync-2026-11-17.
+
+## All current audit fixes validated (2026-11-17)
+
+All ten findings are repaired, with 18 permanent regression cases including real Qt, overlap deduplication, login privacy and time-bound checks. Both primary and actual fork runtime suites pass all 222 cases without skips. The user-owned live module is updated, native data parity is verified and all 20 historical price dictionaries are unchanged. Publish the same feature branch under the earlier commit/push authorization; keep the fork delta limited to its eight runtime/guide/changelog paths.

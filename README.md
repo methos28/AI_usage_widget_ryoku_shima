@@ -269,12 +269,18 @@ available agent, OpenCode first.
   reads it.
 - OpenCode's collector reads its local store read-only and publishes usage
   metadata such as token counts, models, timestamps, recorded cost and titles.
+  Distinct requests from mixed stores are merged; migrated copies are counted
+  once by native message identity, with conservative matching for older rows
+  that lack an ID.
 - Codex reads local session rollouts for tokens, models and sessions. Its
   authenticated app-server supplies quota windows over private local stdio.
   Codex handles its saved login; the collector does not open the auth file or
   publish the account response.
   Session names use Codex's saved `session_index.jsonl` titles, including later
   renames. Missing names fall back to the first prompt or working directory.
+  The two-minute quota cache follows login-file metadata and opaque environment
+  changes. It does not read credential-file contents. Unknown login contexts
+  are rechecked instead of reusing an unbound account measurement.
 - Estimated spending downloads the public OpenAI model catalog from
   `https://models.dev/api.json`. This request carries no API key, login token
   or local usage data. Codex's own quota request requires network access.

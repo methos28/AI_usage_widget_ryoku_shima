@@ -134,6 +134,7 @@ class CodexUsageTest(unittest.TestCase):
         self.assertEqual(self.collect()['_sessions'][0]['title'], 'test')
 
     def test_quota_rpc_reuses_success_or_failure_for_two_minutes(self):
+        (self.sessions.parent / 'auth.json').write_text('{"fixture":true}')
         for data in ({'source': 'rpc', 'rateLimits': {}}, None):
             with self.subTest(data=data), patch.dict(os.environ, self.env, clear=True):
                 module = runpy.run_path(str(COLLECTOR))

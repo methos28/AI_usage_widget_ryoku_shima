@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Merge mixed OpenCode message stores without losing distinct legacy sessions
+  or counting migrated copies twice.
+- Invalidate Codex quota caches on login changes, exclude future usage from
+  current totals, and preserve historical pricing snapshots.
+- Clear stale running-session indicators and partially parsed dashboard state.
+  Recover valid usage when malformed nested messages or cache rows are present.
+
 - Use Codex's saved session names, including later renames, instead of the first
   prompt when a name exists. Retain prompt and directory fallbacks.
 - Adopt upstream visible-only collection and the two-minute Codex quota cache.

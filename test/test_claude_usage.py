@@ -9,7 +9,8 @@ import runpy
 from unittest.mock import patch
 from datetime import datetime, timezone
 
-COLLECTOR = Path(__file__).resolve().parents[1]/'ai-usage/bin/claude-usage'
+COLLECTOR = Path(os.environ.get('CLAUDE_USAGE_TEST_COLLECTOR',
+                              Path(__file__).resolve().parents[1]/'ai-usage/bin/claude-usage'))
 
 
 class ClaudePreviewTest(unittest.TestCase):

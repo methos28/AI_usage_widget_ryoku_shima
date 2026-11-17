@@ -14,7 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SHIPPED = ROOT / 'ryoku/shell/quickshell/inir/defaults/widgets/ai-usage'
-WIDGET = SHIPPED if SHIPPED.exists() else ROOT / 'ai-usage'
+WIDGET = Path(os.environ.get('AI_USAGE_TEST_WIDGET', SHIPPED if SHIPPED.exists() else ROOT / 'ai-usage'))
 IMPORTS = (ROOT / 'ryoku/shell/quickshell' if SHIPPED.exists() else
            Path(os.environ.get('RYOKU_QML_IMPORTS', Path.home() / '.config/quickshell')))
 
@@ -256,7 +256,7 @@ assert.equal(resetAt(clock/1000+60,translateTime),'retour local deadline');
 
     def test_cache_inclusive_today_and_invalid_cache_shape(self):
         source = (WIDGET / 'UsageModel.qml').read_text()
-        names = ('empty', 'pct', 'normalizeWindows', 'shortName', 'normalizePeriods', 'kmg', 'parse')
+        names = ('empty', 'pct', 'normalizeWindows', 'shortName', 'normalizePeriods', 'kmg', 'updateFreshness', 'parse')
         script = SETUP + '\n'.join(function(source, name) for name in names)
         script += '\nconst root={' + ','.join(names) + '}; const switchTimer={stop(){}};'
         script += """
@@ -532,7 +532,7 @@ assert.deepEqual(heatmap().weeks,[]);
 
     def test_cache_hours_normalize_both_units(self):
         source = (WIDGET / 'UsageModel.qml').read_text()
-        names = ('empty', 'pct', 'normalizeWindows', 'shortName', 'normalizePeriods', 'kmg', 'parse')
+        names = ('empty', 'pct', 'normalizeWindows', 'shortName', 'normalizePeriods', 'kmg', 'updateFreshness', 'parse')
         script = SETUP + '\n'.join(function(source, name) for name in names)
         script += '\nconst root = {' + ','.join(names) + '}; const switchTimer={stop(){}};'
         script += '''
@@ -637,7 +637,7 @@ assert.equal(monthly().available,undefined);
 
     def test_claude_stale_limits_do_not_become_current_zero_windows(self):
         source=(WIDGET/'UsageModel.qml').read_text()
-        names=('empty','pct','normalizeWindows','shortName','normalizePeriods','kmg','parse')
+        names=('empty','pct','normalizeWindows','shortName','normalizePeriods','kmg','updateFreshness','parse')
         script=SETUP+'\n'.join(function(source,name) for name in names)
         script+='\nconst root={'+','.join(names)+'}; const switchTimer={stop(){}};'
         script+='''
