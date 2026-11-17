@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve message IDs learned from matched copies so a distinct request from
+  a third OpenCode store cannot be discarded as another anonymous copy.
+
 - Merge mixed OpenCode message stores without losing distinct legacy sessions
   or counting migrated copies twice.
 - Invalidate Codex quota caches on login changes, exclude future usage from

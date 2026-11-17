@@ -21,6 +21,42 @@ widget = runpy.run_path(str(ROOT/'test/test_widget.py'))
 
 
 class Audit(unittest.TestCase):
+    def test_promoted_identity_preserves_a_distinct_third_store_request(self):
+        merge = runpy.run_path(str(opencode['COLLECTOR']))['merge_message_stores']
+        row = dict(session_id='s', model_id='m', provider_id='', time=1, input=100,
+                   output=20, reasoning=0, cache_read=0, cache_write=0, cost=0, total=120)
+        cases = [([None, 'A', 'B'], 2), ([None, 'A', 'A'], 1),
+                 (['A', None, 'B'], 2), ([None, None, 'A'], 1), (['A', 'A', 'A'], 1)]
+        for ids, expected in cases:
+            with self.subTest(ids=ids):
+                stores = [[dict(row, **({'_message_id': mid} if mid else {}))] for mid in ids]
+                result = merge(*stores)
+                self.assertEqual(len(result), expected)
+                self.assertEqual(sum(item['total'] for item in result), expected * 120)
+                self.assertEqual({item.get('_message_id') for item in result if item.get('_message_id')},
+                                 {mid for mid in ids if mid})
+
+    def test_real_three_store_loader_promotes_ids_without_losing_requests(self):
+        f = self.opencode_fixture()
+        stamp = opencode['now_ms']() - 10000
+        native = dict(role='assistant', model={'id': 'm'},
+                      tokens={'input': 100, 'output': 20, 'cache': {'read': 0, 'write': 0}},
+                      time={'created': stamp}, cost=0)
+        legacy = dict(native, modelID='m', sessionID='s')
+        with closing(sqlite3.connect(f.data/'opencode.db')) as connection, connection:
+            connection.execute('create table session_message(session_id text,type text,time_created integer,data text)')
+            connection.execute('insert into session_message values(?,?,?,?)',
+                               ('s', 'assistant', stamp, json.dumps(native)))
+            connection.execute('create table message(id text,session_id text,time_created integer,time_updated integer,data text)')
+            connection.execute('insert into message values(?,?,?,?,?)',
+                               ('B', 's', stamp, stamp, json.dumps(dict(legacy, id='B'))))
+        folder = f.data/'storage/message/s'
+        folder.mkdir(parents=True)
+        (folder/'A.json').write_text(json.dumps(dict(legacy, id='A')))
+        result = opencode['run_collector'](f.data, f.cache)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(f.read_cache()['_periods']['all']['tokens'], 240)
+
     def test_three_store_copies_use_one_native_request_identity(self):
         f = self.opencode_fixture()
         opencode['write_v2_store'](f.data)
