@@ -1,25 +1,48 @@
 #!/usr/bin/env bash
-# Install the widget, collector and service drop-in on this machine.
+# Install the self-contained widget and its bundled collectors on this machine.
 set -euo pipefail
+umask 077
 
 root="$(cd "$(dirname "$0")" && pwd)"
 widgets="$HOME/.config/inir/widgets"
-bin="$HOME/.local/bin"
-dropin="$HOME/.config/systemd/user/ryoku-ai-usage.service.d"
+target="$widgets/ai-usage"
+[[ -f "$root/ai-usage/widget.json" ]] || { echo "widget source is incomplete" >&2; exit 1; }
+install -d "$widgets"
+exec {install_lock_fd}>>"$widgets/.ai-usage-install.lock"
+flock "$install_lock_fd"
+staging="$(mktemp -d "$widgets/.ai-usage-stage.XXXXXX")"
+backup=""
+published=0
 
-install -d "$widgets" "$bin" "$dropin"
-rm -rf "$widgets/ai-usage"
-cp -a "$root/ai-usage" "$widgets/ai-usage"
-install -m 755 "$root/collector/opencode-usage-v2" "$bin/opencode-usage-v2"
-install -m 755 "$root/collector/codex-usage" "$bin/codex-usage"
-install -m 644 "$root/systemd/ryoku-ai-usage.service.d/override.conf" \
-    "$dropin/override.conf"
+cleanup() {
+    local status=$?
+    trap - EXIT
+    trap '' INT TERM
+    if (( status != 0 )); then
+        if [[ -n "$backup" && ( -e "$backup" || -L "$backup" ) ]]; then
+            rm -rf -- "$target"
+            mv -T -- "$backup" "$target"
+        elif (( published )); then
+            rm -rf -- "$target"
+        fi
+    fi
+    rm -rf -- "$staging"
+    if (( status == 0 )) && [[ -n "$backup" ]]; then rm -rf -- "$backup"; fi
+    exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-systemctl --user daemon-reload
-systemctl --user start ryoku-ai-usage.service || true
-ryoku-shell reload
+cp -a "$root/ai-usage/." "$staging/"
+if [[ -e "$target" || -L "$target" ]]; then
+    backup="$(mktemp -d "$widgets/.ai-usage-before.XXXXXX")"
+    rmdir -- "$backup"
+    mv -T -- "$target" "$backup"
+fi
+mv -T -- "$staging" "$target"
+published=1
+ryoku-shell reload {install_lock_fd}>&-
 
-printf 'installed: %s\n' "$widgets/ai-usage"
-printf 'collector: %s\n' "$bin/opencode-usage-v2"
-printf 'collector: %s\n' "$bin/codex-usage"
-printf 'service:   %s\n' "$dropin/override.conf"
+printf 'installed: %s\n' "$target"
+printf 'collectors: %s\n' "$target/bin"

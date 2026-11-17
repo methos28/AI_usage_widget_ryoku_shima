@@ -85,4 +85,3 @@ Column {
         text: windowRow.resetLabel
     }
 }
-

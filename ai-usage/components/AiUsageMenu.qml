@@ -20,7 +20,14 @@ IrisSurface {
     property real menuWidth: 172
     property int rowHeight: Math.round(30 * IrisStyle.density)
     property bool boldCurrent: true
+    property string _hoveredValue: ""
+    readonly property int highlightedIndex: {
+        const hovered = root.options.findIndex(option => String(option?.value ?? "") === root._hoveredValue)
+        return root._hoveredValue.length > 0 && hovered >= 0 ? hovered
+            : root.options.findIndex(option => String(option?.value ?? "") === root.currentValue)
+    }
     signal picked(string value)
+    onOpenChanged: root._hoveredValue = ""
 
     visible: root.open
     raised: true
@@ -35,6 +42,19 @@ IrisSurface {
         color: "transparent"
         border.width: 1
         border.color: IrisStyle.borderStrong
+    }
+
+    // One background serves hover and selection. Independent row fills could
+    // touch and merge when the selected row sat beside the hovered row.
+    Rectangle {
+        readonly property int inset: Math.round(2 * IrisStyle.density)
+        x: column.x
+        y: column.y + root.highlightedIndex * root.rowHeight + inset
+        width: column.width
+        height: Math.max(0, root.rowHeight - 2 * inset)
+        visible: root.highlightedIndex >= 0
+        radius: IrisStyle.radiusSmall
+        color: IrisStyle.fillHover
     }
 
     Column {
@@ -52,12 +72,6 @@ IrisSurface {
                 height: root.rowHeight
                 readonly property bool current: String(modelData?.value ?? "") === root.currentValue
 
-                Rectangle {
-                    anchors.fill: parent
-                    radius: IrisStyle.radiusSmall
-                    color: row.current || rowArea.containsMouse
-                        ? IrisStyle.fillHover : "transparent"
-                }
                 IrisText {
                     anchors.left: parent.left
                     anchors.leftMargin: Math.round(9 * IrisStyle.density)
@@ -82,6 +96,11 @@ IrisSurface {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
+                    onEntered: root._hoveredValue = String(row.modelData?.value ?? "")
+                    onExited: {
+                        if (root._hoveredValue === String(row.modelData?.value ?? ""))
+                            root._hoveredValue = ""
+                    }
                     onClicked: {
                         root.open = false
                         root.picked(String(row.modelData?.value ?? ""))

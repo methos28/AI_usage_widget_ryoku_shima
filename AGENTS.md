@@ -14,7 +14,8 @@ it. It does not change rules for any other project.
    - `git -C /home/methos/Documents/opencode_widget_ryoku_shima status -sb`
    - `git -C /home/methos/Projects/ryoku-unstable status -sb`
    - `diff -rq ai-usage ~/.config/inir/widgets/ai-usage`
-   - cache shape: `~/.cache/{opencode,codex,claude}-usage.json`
+   - widget cache shape: `~/.cache/ai-usage/{opencode,codex}-usage.json`
+   - legacy shared caches may also exist at `~/.cache/<tool>-usage.json`.
 4. If the records and the live state disagree, stop and record the discrepancy
    in `PROJECT_LOG.md`; do not silently pick one.
 
@@ -78,9 +79,12 @@ it. Never rewrite earlier entries; append corrections with a timestamp.
 - The user requested the `ai-usage` branch on 2026-11-07 for the upstream
   review. Use it for review fixes in the user's fork. Preserve `unstable-dev`;
   do not create other feature branches unless requested.
-- Claude is intentionally held out of both the standalone and shipped PR widget
-  menus until its collector publishes the same history as OpenCode and Codex and
-  is validated with real usage data. Keep shared support for the later follow-up.
+- Claude is enabled in the standalone/live widget as an explicit user-requested
+  preview (2026-11-09). Real token history, Sonnet 5.5 API-equivalent costs and
+  Desktop account quotas are validated. Native lifecycle/PID fixtures pass;
+  a fresh active Desktop run is still pending. The user accepted the Claude
+  display name and requested publication to the fork's ai-usage branch on
+  2026-11-09, superseding the previous downstream hold for that branch.
 
 ## Ownership map
 
@@ -90,22 +94,30 @@ it. Never rewrite earlier entries; append corrections with a timestamp.
   `ai-usage`; `unstable-dev` retains the delivered module commits.
   Local clone: `/home/methos/Projects/ryoku-unstable`.
 - Original ryoku repo (upstream): `Ryoku-dev/ryoku`, read-only reference.
-- Live Codex collector copy: `~/.local/bin/codex-usage`
-- Live OpenCode collector copy: `~/.local/bin/opencode-usage-v2`
-- Caches: `~/.cache/opencode-usage.json`, `~/.cache/codex-usage.json`,
-  `~/.cache/claude-usage.json`
-- Systemd timer: `ryoku-ai-usage.timer` with drop-in
-  `~/.config/systemd/user/ryoku-ai-usage.service.d/override.conf`
+- Widget collectors: `~/.config/inir/widgets/ai-usage/bin/`, invoked by the
+  local `collect-usage` launcher resolved from UsageModel.qml.
+- Canonical source: `ai-usage/bin/`. Earlier `collector/` entry points are
+  relative source symlinks. Keep Ryoku's `ryoku/rashin/usage/` files unchanged.
+- Widget caches: `~/.cache/ai-usage/{opencode,codex,claude}-usage.json` and the private
+  Codex activity file beside them. Other shell panels retain their shared caches.
+- The widget does not use `ryoku-ai-usage.timer` or a service override.
+  Earlier home-bin/libexec collectors and service drop-ins may remain for other
+  consumers; do not remove those user-owned files during this migration.
 
 ## Known traps
 
-- The packaged `/usr/bin/opencode-usage` writes a thinner cache and can overwrite
-  the enriched one; the timer must run the repository collector.
+- Never fall back to system collectors or shared cache paths inside the widget.
+  An older system collector can overwrite its own shared cache; widget data is
+  isolated under `~/.cache/ai-usage`.
+- Widget collectors use their own private cache locks. Never replace Rashin's
+  collectors, acquire its global cache locks, or modify distro documentation.
+  Fork changes stay within the widget, required discovery/loading/settings wiring,
+  focused tests/CI and root CHANGELOG.md (user scope correction, 2026-11-09).
 - Codex `_hours[].start` is milliseconds; older caches used seconds. The widget
   normalises both.
 - Codex legacy costs stay `0`; `_spending` holds the separate local API-equivalent
-  estimate. Label it `Est. Spending`, never a Plus charge or wallet balance.
-  Missing estimates show an em dash; partial coverage has a tooltip and marker.
+  estimate. Label it `API Value` for every agent, never a Plus charge or wallet balance.
+  Missing estimates show a plain ASCII dash; partial coverage has a tooltip and marker.
 - Monthly spending ledgers and daily price snapshots are persistent state under
   `~/.local/state/ai-usage`, private mode 0600. Never reprice older days with
   today's rates. Tests must isolate state and disable live price fetching.
@@ -114,3 +126,40 @@ it. Never rewrite earlier entries; append corrections with a timestamp.
   lifetime history.
 - `muse spark 1.3 contributor` exists in the model catalog as
   `commandcode/meta/muse-spark-1.3-contributor` with variant `xhigh`.
+
+## Current submission override (2026-11-10)
+
+The active Ryoku fork checkout is /home/methos/ryoku-arch and the active branch
+is ai-usage-dashboard. Earlier ai-usage and Projects/ryoku-unstable references
+above are historical. The user authorizes commit and push of this fresh port.
+Only widget runtime, three required QML wiring files and an initial Added entry
+in root CHANGELOG.md belong in this submission. No tests/CI or Rashin changes
+in the port; run preserved tests outside the submitted tree.
+
+Track user-specified PRs in PR_TRACKER.md. Treat this submission as the first
+PR and describe the whole module as a new feature until the user says otherwise.
+Do not describe unpublished module repairs as upstream fixes. Never create a
+PR against Ryoku-dev/ryoku without explicit later user instruction. The current
+task authorizes no PR creation, only fork branch commit and push.
+
+## Source-first synchronization reaffirmed by the user
+
+The standalone project /home/methos/Documents/opencode_widget_ryoku_shima is
+the primary application source. Every app-code change must be made there and
+mirrored deliberately into the active Ryoku ai-usage-dashboard branch at
+/home/methos/ryoku-arch/ryoku/shell/quickshell/inir/defaults/widgets/ai-usage.
+Never leave an app fix only in the Ryoku port. Keep primary tests and records
+here; retain the existing minimal-file policy for the Ryoku submission.
+Only Ryoku-specific integration and intentional built-in metadata belong solely
+in the port. Validate both copies before deploying tested primary runtime files.
+The request to keep copies synchronized does not authorize applying the pending
+PR #779 findings; those remain under assessment until the user authorizes fixes.
+
+## Authorized PR #779 review work and guide
+
+On 2026-11-10 the user authorized the seven recommended fixes in
+PR_779_REVIEW_ISSUES.md, with the unproven DST change held. They also authorized
+docs/ai-usage.md and its link/source-map entry in docs/structure.md in the Ryoku
+fork; this is a scoped exception to the older docs exclusion. Keep changelog
+copy exclusively in the existing Added feature entry. This authorization does
+not request commit, push, new PR creation or review-thread messages.

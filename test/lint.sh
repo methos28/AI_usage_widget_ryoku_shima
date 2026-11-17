@@ -15,6 +15,13 @@ else
 fi
 
 python3 -m py_compile "$root/collector/opencode-usage-v2"
+python3 -m py_compile "$root/collector/codex-usage"
+python3 -m py_compile "$root/ai-usage/bin/claude-usage"
+python3 -m py_compile "$root/ai-usage/bin/model-pricing.py"
+python3 -m json.tool "$root/ai-usage/bin/model-prices.json" > /dev/null
+python3 -m py_compile "$root/ai-usage/bin/claude-quota.py" "$root/ai-usage/bin/claude-sessions.py" "$root/ai-usage/bin/claude-spending.py"
+python3 -m py_compile "$root/ai-usage/bin/rolling-history.py"
+bash -n "$root/ai-usage/bin/collect-usage" "$root/install.sh"
 python3 -m py_compile "$here/test_collector.py"
 python3 -m py_compile "$here/cache_contract.py"
 echo "lint OK"

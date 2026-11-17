@@ -16,6 +16,7 @@ AiUsageGlassCard {
     required property var usage
     id: card
     property bool expanded: false
+    readonly property int modelCount: Number(page.activePeriod?.modelCount ?? page.periodModels.length)
     radius: page.radius
     implicitHeight: body.implicitHeight + 2 * page.pad
 
@@ -27,7 +28,7 @@ AiUsageGlassCard {
         spacing: page.step * 3
 
         AiUsageFoldHeader {
-            title: "Models"
+            title: Translation.tr("Models")
             expanded: card.expanded
             onToggled: card.expanded = !card.expanded
             IrisText {
@@ -35,10 +36,10 @@ AiUsageGlassCard {
                 role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: page.periodModels.length > page.topModels
-                    ? "top " + page.topModels + " of " + page.periodModels.length
-                    : page.periodModels.length + " model"
-                        + (page.periodModels.length === 1 ? "" : "s")
+                text: card.modelCount > page.topModels
+                    ? Translation.tr("top %1 of %2").arg(page.topModels).arg(card.modelCount)
+                    : (card.modelCount === 1 ? Translation.tr("%1 model")
+                        : Translation.tr("%1 models")).arg(card.modelCount)
             }
         }
 
@@ -58,12 +59,13 @@ AiUsageGlassCard {
 
             IrisText {
                 width: parent.width
-                visible: page.periodModels.length > page.topModels
+                visible: card.modelCount > page.topModels
                 role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(9 * IrisStyle.density)
-                text: "+" + (page.periodModels.length - page.topModels) + " more model"
-                    + (page.periodModels.length - page.topModels === 1 ? "" : "s")
+                text: (card.modelCount - page.topModels === 1
+                    ? Translation.tr("+%1 more model") : Translation.tr("+%1 more models"))
+                    .arg(card.modelCount - page.topModels)
             }
         }
     }

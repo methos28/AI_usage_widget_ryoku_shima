@@ -30,6 +30,7 @@ Item {
         width: parent.width * 0.72
         height: modelRow.nameHeight
         text: modelRow.modelData?.nameShort ?? ""
+        textFormat: Text.PlainText
         elide: Text.ElideRight
         font.pixelSize: Math.round(12 * IrisStyle.density)
         font.weight: IrisStyle.weight(Font.Medium)

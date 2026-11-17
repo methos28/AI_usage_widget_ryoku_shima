@@ -1,35 +1,38 @@
 pragma ComponentBehavior: Bound
 
-// Reads one tool's usage cache the way the shared collectors leave it:
-// ~/.cache/<tool>-usage.json, written by ryoku-ai-usage.service. Mirrors the
+// Reads one tool's private cache from the bundled collectors:
+// ~/.cache/ai-usage/<tool>-usage.json. Mirrors the
 // legacy parser of the shell's AiUsage service, kept local so a module failure
 // stays local (the shell service is not imported across namespaces).
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "refresh" as Background
 
 Item {
     id: root
 
     property string tool: "opencode"
     property bool refreshing: false
+    property bool collectionReady: false
     // True while a tool switch is waiting for the new cache. The old card stays
     // on screen instead of flashing the empty state and its refresh button.
     property bool switching: false
+    signal collected
 
-    // ── parsed state ──
+    // -- parsed state --
     property bool has: false
     property bool fresh: false
     property int pct5h: 0
     property int percent7d: 0
-    property int reset5hTs: 0
-    property int reset7dTs: 0
+    property double reset5hTs: 0
+    property double reset7dTs: 0
     // Relative times recompute when this advances (see relative()).
     property int tick: 0
     property string plan: ""
     property string windowTokens: ""   // "_tokens_used / _window_limit"
     property string weekTokens: ""     // "_7d_tokens / _7d_limit"
-    property int today: 0              // tokens today
+    property double today: 0              // tokens today
     property var recent: []            // [{date, tokens}] fallback when the cache has no _days
     property var days: []              // [{date, tokens}] full history from the collector
     property var hours: []             // [{start, tokens}] the last 48 clock hours
@@ -37,6 +40,7 @@ Item {
     property var periods: ({})         // "7"/"30"/"all" → {tokens, cacheRate, cost, sessions, models}
     property var windows: []           // [{label, pct, caption, resetTs}] server-reported quota windows
     property var spending: ({})        // Local API-equivalent estimate and coverage; not account charges.
+    property var quota: ({})           // Claude account source, capture time and freshness.
     readonly property var runningSessions: root.sessions.filter(s => s && s.running)
     // A provider plan is what makes a 5h/7d window meaningful. The local
     // OpenCode collector says "local messages" and invents its budgets, so
@@ -119,31 +123,50 @@ Item {
         return latest
     }
     // "18 min. ago", and nothing at all before the first message.
-    function relative(ms: double): string {
+    function relative(ms: double, translate: var): string {
         root.tick
         if (!(ms > 0)) return ""
+        const tr = typeof translate === "function" ? translate : value => value
         const mins = Math.max(0, Math.round((Date.now() - ms) / 60000))
-        if (mins < 2) return "just now"
-        if (mins < 60) return mins + " min. ago"
+        if (mins < 2) return tr("just now")
+        if (mins < 60) return tr("%1 min. ago").replace("%1", String(mins))
         const h = Math.floor(mins / 60)
-        if (h < 24) return h + (h === 1 ? " hr. ago" : " hrs. ago")
+        if (h < 24) return tr(h === 1 ? "%1 hr. ago" : "%1 hrs. ago").replace("%1", String(h))
         const d = Math.floor(h / 24)
-        return d + (d === 1 ? " day ago" : " days ago")
+        return tr(d === 1 ? "%1 day ago" : "%1 days ago").replace("%1", String(d))
     }
 
-    function resetIn(ts: double): string {
+    function resetAt(ts: double, translate: var): string {
         root.tick
-        if (!(ts > 0)) return ""
-        const seconds = ts - Math.floor(Date.now() / 1000)
-        if (seconds <= 0) return "reset due"
-        const minutes = Math.ceil(seconds / 60)
-        if (minutes < 60) return "resets in " + minutes + " min"
-        const hours = Math.ceil(minutes / 60)
-        if (hours < 24) return "resets in " + hours + " hr"
-        return "resets in " + Math.ceil(hours / 24) + " days"
+        if (!(ts > 0) || !Number.isFinite(ts)) return ""
+        const deadline = new Date(ts * 1000)
+        if (!Number.isFinite(deadline.getTime())) return ""
+        const label = Qt.formatDateTime(deadline, "d MMM, h:mm AP t")
+        const tr = typeof translate === "function" ? translate : value => value
+        return tr(ts <= Date.now() / 1000 ? "reset was %1" : "resets %1").replace("%1", label)
     }
 
-    Component.onCompleted: cacheFile.reload()
+    property bool _watching: false
+    function watchRefresh(on: bool): void {
+        if (root._watching === on) return
+        root._watching = on
+        Background.UsageRefresh.watch(on)
+    }
+
+    Component.onCompleted: {
+        root.collectionReady = Background.UsageRefresh.collectionReady
+        cacheFile.reload()
+        root.watchRefresh(root.visible)
+        if (root.visible) root.refresh()
+    }
+    Component.onDestruction: root.watchRefresh(false)
+    onVisibleChanged: {
+        root.watchRefresh(root.visible)
+        if (root.visible) {
+            cacheFile.reload()
+            root.refresh()
+        }
+    }
     onToolChanged: {
         // Keep the current numbers visible while the other cache loads. A
         // switch whose cache is missing or unreadable ends in empty(), either
@@ -171,6 +194,7 @@ Item {
         root.periods = ({})
         root.windows = []
         root.spending = ({})
+        root.quota = ({})
     }
 
     function pct(value: string): int {
@@ -189,32 +213,21 @@ Item {
         return String(value)
     }
 
-    // The collector is ours; refreshing it must not depend on the Ryoku unit
-    // name. OpenCode runs the local collector directly, with the shipped
-    // service as a fallback. Claude and Codex still go through the service so
-    // its install guards keep their fake or absent caches untouched.
-    readonly property string collectorPath: Quickshell.env("HOME") + "/.local/bin/opencode-usage-v2"
-    readonly property var collectorCommand: root.tool === "opencode"
-        ? [root.collectorPath]
-        : ["ryoku-host", "svc", "--user", "start", "ryoku-ai-usage.service"]
-
     function refresh(): void {
-        if (root.refreshing) return
-        root.refreshing = true
+        Background.UsageRefresh.refresh()
+        root.refreshing = Background.UsageRefresh.refreshing
         staleTimer.restart()
-        collector.running = false
-        collector.running = true
     }
 
-    function parse(text: string, modifiedAt: int): void {
+    function parse(text: string, modifiedAt: double): void {
         root.empty()
         try {
             const data = JSON.parse(String(text || "").trim())
-            if (Object.keys(data).length === 0) return
+            if (!data || typeof data !== "object" || Array.isArray(data) || Object.keys(data).length === 0) return
             root.has = true
-            root.fresh = modifiedAt > 0
-                && (Date.now() / 1000 - modifiedAt) < 900
-                && data._source !== "stale"
+            const age = Date.now() / 1000 - modifiedAt
+            root.fresh = modifiedAt > 0 && age >= -120 && age < 900
+                && data._source !== "stale" && data._stale !== true
             root.pct5h = root.pct(data["5h-utilization"])
             root.percent7d = root.pct(data["7d-utilization"])
             root.reset5hTs = parseInt(data["5h-reset"]) || 0
@@ -231,9 +244,12 @@ Item {
                 ? root.kmg(weekUsed) + " / " + root.kmg(weekLimit)
                 : ""
             root.windows = root.normalizeWindows(data)
-            root.today = Number(data._today_tokens) || 0
+            const today = Number(data._today_tokens_with_cache_read ?? data._today_tokens ?? 0)
+            root.today = Number.isFinite(today) && today >= 0 ? today : 0
             root.spending = data._spending && typeof data._spending === "object"
                 ? data._spending : ({})
+            root.quota = data._quota && typeof data._quota === "object"
+                ? data._quota : ({})
             if (data._recent_days instanceof Array) {
                 const days = data._recent_days
                 root.recent = days.slice(Math.max(0, days.length - 7))
@@ -277,7 +293,9 @@ Item {
                     updated: Number(s?.updated) || 0,
                     tokens: Number(s?.tokens) || 0,
                     cost: Number(s?.cost) || 0,
-                    running: s?.running === true
+                    running: s?.running === true,
+                    activityState: String(s?.activityState ?? ""),
+                    activityEvidence: String(s?.activityEvidence ?? "")
                 })
             }
             root.sessions = sessionRows
@@ -292,9 +310,8 @@ Item {
         }
     }
 
-    // The collectors write under ~/.cache whatever XDG_CACHE_HOME says, so the
-    // reader follows them rather than the XDG variable (same as the shell).
-    readonly property string cacheDir: Quickshell.env("HOME") + "/.cache"
+    // Private widget caches cannot be replaced by an older system collector.
+    readonly property string cacheDir: Quickshell.env("HOME") + "/.cache/ai-usage"
     readonly property string cachePath: root.cacheDir + "/" + root.tool + "-usage.json"
 
     property string _pendingText: ""
@@ -335,26 +352,18 @@ Item {
     Timer {
         interval: 6000
         repeat: true
-        running: root._missing
+        running: root._missing && root.visible
         onTriggered: cacheFile.reload()
     }
 
-    Process {
-        id: collector
-        command: root.collectorCommand
-        onExited: (exitCode, exitStatus) => {
-            if (root.tool === "opencode" && exitCode !== 0) {
-                serviceFallback.running = true
-                return
-            }
+    Connections {
+        target: Background.UsageRefresh
+        function onCollected(exitCode: int): void {
+            if (exitCode === 0) root.collectionReady = true
             _pendingReloadTimer.restart()
         }
-    }
-    Process {
-        id: serviceFallback
-        command: ["ryoku-host", "svc", "--user", "start", "ryoku-ai-usage.service"]
-        onExited: (exitCode, exitStatus) => {
-            _pendingReloadTimer.restart()
+        function onRefreshingChanged(): void {
+            root.refreshing = Background.UsageRefresh.refreshing
         }
     }
     Timer {
@@ -366,6 +375,7 @@ Item {
             // stale timeout.
             root.refreshing = false
             cacheFile.reload()
+            root.collected()
         }
     }
     Timer {
@@ -392,17 +402,8 @@ Item {
         interval: 30000
         repeat: true
         triggeredOnStart: true
-        running: root.has
+        running: root.has && root.visible
         onTriggered: root.tick++
-    }
-    // The page has no reload button: the collector runs again every minute
-    // while the module is on screen, so the numbers are never older than that.
-    Timer {
-        interval: 60000
-        repeat: true
-        triggeredOnStart: true
-        running: root.has
-        onTriggered: root.refresh()
     }
     Connections {
         target: cacheFile

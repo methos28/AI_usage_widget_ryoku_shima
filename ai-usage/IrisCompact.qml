@@ -1,6 +1,6 @@
 pragma ComponentBehavior: Bound
 
-// AI usage — the Shima Island's AI page, laid out like Vorssaint's Dynamic
+// AI usage: the Shima Island's AI page, laid out like Vorssaint's Dynamic
 // Island page: a grid of small cards.
 //
 //   [ Limits | Now ]  ← Limits only when the cache reports a real plan
@@ -8,7 +8,7 @@ pragma ComponentBehavior: Bound
 //   [    Models    ]
 //
 // Every card is an IrisSurface on Shima tokens; the data is the shared usage
-// cache (~/.cache/<tool>-usage.json) and nothing here writes usage anywhere.
+// cache (~/.cache/ai-usage/<tool>-usage.json) written by its bundled collectors.
 import QtQuick
 import QtQuick.Effects
 import Quickshell
@@ -28,19 +28,20 @@ Item {
     property string irisSlot: ""
     property var targetScreen
 
-    // ── config (written by Shima Settings; read null-guarded here) ──
+    // -- config (written by Shima Settings; read null-guarded here) --
     readonly property string tool: CustomWidgets.getConfigValue("ai-usage", "tool", "opencode")
     readonly property var labels: ({ opencode: "OpenCode", claude: "Claude", codex: "Codex" })
 
-    // ── agents this machine actually uses ──
+    // -- agents this machine actually uses --
     // A usage cache exists only after that agent ran here, so the menu offers
     // just the agents with a cache. The stored tool stays valid: if its cache
     // disappears the page falls back to the first agent that still has one
     // (OpenCode first) and writes that once.
-    // Claude stays out until its collector is validated with real usage data.
+    // Claude is enabled as a local-history preview for the requested desktop trial.
     readonly property var agentCatalog: [
         { value: "opencode", label: "OpenCode", available: availability.opencode },
-        { value: "codex", label: "Codex", available: availability.codex }
+        { value: "codex", label: "Codex", available: availability.codex },
+        { value: "claude", label: "Claude", available: availability.claude }
     ]
     readonly property var agentOptions: root.agentCatalog.filter(option => option.available)
     readonly property bool hasAnyAgent: root.agentOptions.length > 0
@@ -50,7 +51,7 @@ Item {
     readonly property bool agentSwitchable: availability.ready && root.agentOptions.length > 1
     // No cache at all: keep the card and name OpenCode, like a fresh install,
     // instead of an empty menu and a chip with nothing behind it. A stored
-    // tool this build does not offer (Claude while it is held back) falls to
+    // tool this build does not offer falls to
     // the first agent that has a cache, without waiting for the write back.
     readonly property string activeTool: {
         if (!availability.ready) return root.tool
@@ -59,6 +60,19 @@ Item {
         return String(root.agentOptions[0]?.value ?? "opencode")
     }
     readonly property string toolLabel: root.labels[root.activeTool] ?? root.activeTool
+    readonly property var timeLabels: ({
+        "just now": Translation.tr("just now"),
+        "%1 min. ago": Translation.tr("%1 min. ago"),
+        "%1 hr. ago": Translation.tr("%1 hr. ago"),
+        "%1 hrs. ago": Translation.tr("%1 hrs. ago"),
+        "%1 day ago": Translation.tr("%1 day ago"),
+        "%1 days ago": Translation.tr("%1 days ago"),
+        "reset was %1": Translation.tr("reset was %1"),
+        "resets %1": Translation.tr("resets %1")
+    })
+    function translateTime(value: string): string {
+        return root.timeLabels[value] ?? value
+    }
     property bool _fallbackWritten: false
 
     // The Island's Desktop page body is iris.bar.pageWidth minus its 20px
@@ -72,11 +86,11 @@ Item {
         Number(CustomWidgets.getConfigValue("ai-usage", "topModels", 3))))
 
     readonly property var periodOptions: [
-        { value: "today", label: "Today" },
-        { value: "24h", label: "Last 24 hours" },
-        { value: "7", label: "Last 7 days" },
-        { value: "30", label: "Last 30 days" },
-        { value: "all", label: "All time" }
+        { value: "today", label: Translation.tr("Today") },
+        { value: "24h", label: Translation.tr("Last 24 hours") },
+        { value: "7", label: Translation.tr("Last 7 days") },
+        { value: "30", label: Translation.tr("Last 30 days") },
+        { value: "all", label: Translation.tr("All time") }
     ]
     readonly property string periodKey: {
         const stored = String(CustomWidgets.getConfigValue("ai-usage", "period", "30"))
@@ -86,7 +100,7 @@ Item {
     readonly property int periodDays: root.periodKey === "all" ? 0 : Number(root.periodKey)
     readonly property string periodLabel: {
         const option = root.periodOptions.find(entry => entry.value === root.periodKey)
-        return option ? option.label : "Last 30 days"
+        return option ? option.label : Translation.tr("Last 30 days")
     }
 
     readonly property int pad: Math.round(10 * IrisStyle.density)
@@ -104,6 +118,7 @@ Item {
     UsageModel {
         id: usageModel
         tool: root.activeTool
+        onCollected: availability.reloadAll()
     }
 
     // Everything on the page follows this one period.
@@ -112,7 +127,7 @@ Item {
     // This month's spend from the day buckets (cost is per assistant turn).
     readonly property var monthly: {
         const key = Qt.formatDate(new Date(), "yyyy-MM")
-        if (root.activeTool === "codex") {
+        if (root.activeTool === "codex" || root.activeTool === "claude") {
             const estimate = usageModel.spending
             const available = estimate?.kind === "api-equivalent" && estimate?.month === key
                 && estimate?.amount !== null && estimate?.amount !== undefined
@@ -129,15 +144,17 @@ Item {
         return ({ current: total, label: root.monthLabel(key) })
     }
     readonly property string spendHelp: {
-        if (root.activeTool !== "codex") return "This month's recorded usage cost."
+        if (root.activeTool === "opencode") return Translation.tr("This month's recorded usage cost.")
         const estimate = usageModel.spending
-        let text = "Estimated cost at standard API rates.\nNot a bill or wallet balance."
+        let text = Translation.tr("Estimated cost at published API rates.\nNot a bill or wallet balance.")
         if (usageModel.plan.toLowerCase() === "plus")
-            text += "\nYour Plus usage is covered by your plan."
-        if (root.monthly.partial) text += "\nOnly days with saved prices are included."
-        if (estimate?.price_date) text += "\nLatest saved prices: " + estimate.price_date + "."
-        if (root.monthly.stale) text += "\nPrice refresh pending; saved rates are in use."
-        if (!root.monthly.available) text += "\nNo priced usage is available yet."
+            text += "\n" + Translation.tr("Your Plus usage is covered by your plan.")
+        if (root.activeTool === "claude")
+            text += "\n" + Translation.tr("Local Claude Code history only. Shared-account use on other devices is not included.")
+        if (root.monthly.partial) text += "\n" + Translation.tr("Some usage lacks rates or complete pricing data.")
+        if (estimate?.price_date) text += "\n" + Translation.tr("Latest saved prices: %1.").arg(estimate.price_date)
+        if (root.monthly.stale) text += "\n" + Translation.tr("Price refresh pending; saved rates are in use.")
+        if (!root.monthly.available) text += "\n" + Translation.tr("No priced usage is available yet.")
         return text
     }
     readonly property bool hasCostHistory: usageModel.days.some(day => Number(day?.cost ?? 0) > 0)
@@ -149,11 +166,13 @@ Item {
     readonly property bool planAgent: root.activeTool !== "opencode"
     readonly property bool integratedSpend: root.planAgent
     readonly property bool hasPlan: usageModel.hasPlan
+    readonly property bool showLimits: root.hasPlan || root.activeTool === "claude"
 
     // Keep the stored agent pointing at a cache that exists. One write per
     // stale value; changing the tool re-arms it, so a later loss falls back
     // again. Nothing to fall back to leaves the config alone.
     function reconcileAgent(): void {
+        if (!usageModel?.collectionReady) return
         if (!availability.ready)
             return
         if (!root.agentSwitchable)
@@ -167,10 +186,7 @@ Item {
     onToolChanged: root._fallbackWritten = false
     Connections {
         target: availability
-        function onOpencodeChanged() { root.reconcileAgent() }
-        function onClaudeChanged() { root.reconcileAgent() }
-        function onCodexChanged() { root.reconcileAgent() }
-        function onReadyChanged() { root.reconcileAgent() }
+        function onProbed() { Qt.callLater(root.reconcileAgent) }
     }
 
     // Layout 1 was the single long card, layout 2 the fixed 60/90/180 control.
@@ -190,7 +206,7 @@ Item {
         root.reconcileAgent()
     }
 
-    // ── trend buckets: hourly for Today / 24 hours, daily for the rest ──
+    // -- trend buckets: hourly for Today / 24 hours, daily for the rest --
     readonly property var trend: {
         if (root.hourly) {
             const allHours = usageModel.hours
@@ -204,23 +220,31 @@ Item {
                 // same at 02:00 and at 22:00; hours still to come stay empty.
                 const midnight = new Date()
                 midnight.setHours(0, 0, 0, 0)
-                const byStart = ({})
-                for (const hour of allHours)
-                    byStart[Number(hour?.start ?? 0)] = root.historyWeight(hour)
+                const dayKey = Qt.formatDate(midnight, "yyyy-MM-dd")
+                const byHour = ({})
+                for (const hour of allHours) {
+                    const instant = new Date(Number(hour?.start ?? 0))
+                    if (Qt.formatDate(instant, "yyyy-MM-dd") !== dayKey) continue
+                    const clockHour = instant.getHours()
+                    byHour[clockHour] = Number(byHour[clockHour] ?? 0) + root.historyWeight(hour)
+                }
                 for (let i = 0; i < 24; i++) {
-                    const start = midnight.getTime() + i * 3600000
-                    const tokens = Number(byStart[start] ?? 0)
-                    hourBuckets.push({ start: start, tokens: tokens })
+                    const slot = new Date(midnight.getTime())
+                    slot.setHours(i, 0, 0, 0)
+                    const tokens = Number(byHour[i] ?? 0)
+                    hourBuckets.push({ start: slot.getTime(), clockHour: i, tokens: tokens })
                     hourTotal += tokens
                     hourPeak = Math.max(hourPeak, tokens)
                 }
                 return ({ buckets: hourBuckets, total: hourTotal, peak: hourPeak,
                          span: 24, unit: "hours" })
             }
-            const list = allHours.slice(Math.max(0, allHours.length - 24))
+            const rolling = usageModel.period("24h")?.hours
+            const list = Array.isArray(rolling) && rolling.length === 24
+                ? rolling : allHours.slice(Math.max(0, allHours.length - 24))
             for (const hour of list) {
                 const tokens = root.historyWeight(hour)
-                hourBuckets.push({ start: Number(hour?.start ?? 0), tokens: tokens })
+                hourBuckets.push({ start: Number(hour?.start ?? 0), end: Number(hour?.end ?? 0), tokens: tokens })
                 hourTotal += tokens
                 hourPeak = Math.max(hourPeak, tokens)
             }
@@ -274,10 +298,13 @@ Item {
         if (isNaN(parsed.getTime())) return ""
         return Qt.formatDate(parsed, "d MMM")
     }
-    function bucketLabel(bucket: var): string {
+    function bucketLabel(bucket: var, useEnd: bool): string {
         if (root.trend.unit === "hours") {
-            const moment = new Date(Number(bucket?.start ?? 0))
-            return isNaN(moment.getTime()) ? "" : Qt.formatTime(moment, "HH:mm")
+            if (Number.isInteger(bucket?.clockHour))
+                return String(bucket.clockHour).padStart(2, "0") + ":00"
+            const moment = new Date(Number(useEnd && bucket?.end ? bucket.end : bucket?.start ?? 0))
+            if (isNaN(moment.getTime())) return ""
+            return bucket?.end > 0 ? Qt.formatDateTime(moment, "d MMM, HH:mm") : Qt.formatTime(moment, "HH:mm")
         }
         return root.dayLabel(String(bucket?.date ?? ""))
     }
@@ -303,7 +330,7 @@ Item {
         if (String(model.cacheWriteLabel ?? "0") !== "0") parts.push("CW " + model.cacheWriteLabel)
         let text = parts.join("  ")
         if (model.cacheRate !== undefined && model.cacheRate !== null)
-            text += " · " + Math.round(Number(model.cacheRate) * 100) + "% cached"
+            text += " · " + Translation.tr("%1% cached").arg(Math.round(Number(model.cacheRate) * 100))
         return text
     }
 
@@ -393,7 +420,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 role: IrisText.Eyebrow
                 color: IrisStyle.muted
-                text: "AI USAGE"
+                text: Translation.tr("AI USAGE")
             }
         }
 
@@ -403,10 +430,10 @@ Item {
             spacing: root.gap
             visible: usageModel.has
             readonly property bool spendHere: !root.planAgent && root.hasSpend
-            readonly property int count: (root.hasPlan ? 1 : 0) + 1 + (spendHere ? 1 : 0)
+            readonly property int count: (root.showLimits ? 1 : 0) + 1 + (spendHere ? 1 : 0)
             readonly property real half: Math.round((width - spacing) / 2)
             readonly property real rowHeight: Math.max(
-                root.hasPlan ? limitsCard.implicitHeight : 0,
+                root.showLimits ? limitsCard.implicitHeight : 0,
                 nowCard.implicitHeight,
                 primaryRow.spendHere ? spendCard.implicitHeight : 0)
 
@@ -414,7 +441,7 @@ Item {
                 page: root
                 usage: usageModel
                 id: limitsCard
-                visible: root.hasPlan
+                visible: root.showLimits
                 width: primaryRow.count > 1 ? primaryRow.half : primaryRow.width
                 height: primaryRow.rowHeight
             }

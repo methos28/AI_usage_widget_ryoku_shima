@@ -1,25 +1,16 @@
 #!/usr/bin/env python3
-"""Write demo usage caches for the agents this machine does not run.
+"""Write fake preview data only into an explicitly chosen empty directory.
 
-The island module reads ~/.cache/<tool>-usage.json. Claude Code and Codex are
-not installed here, so their collectors never write those files and the agent
-switch would only show an empty card. This script fabricates believable caches
-so the switch, the cards and the month-to-month Spending view can be tried.
-
-Nothing here is real usage. Delete the two cache files to return to normal:
-
-    rm ~/.cache/claude-usage.json ~/.cache/codex-usage.json
-
-Run it again after 15 minutes if the card's freshness text turns on (the cache
-is treated as stale 15 minutes after its mtime).
+Example: python3 test/make-demo-caches.py --output-dir /tmp/ai-usage-demo
+No real account, widget cache or shared collector state is changed by default.
 """
+import argparse
 import json
 import os
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
-CACHE_DIR = Path.home() / ".cache"
 random.seed(20261105)
 
 
@@ -85,12 +76,9 @@ def build(tool: str, plan: str, model: str, models: list[tuple[str, float, float
     today = days[-1]
     last7 = days[-7:]
     last30 = days[-30:]
-    total_tokens = sum(day["tokens"] for day in days)
-    total_cache = sum(day["cacheRead"] for day in days)
     tokens7 = sum(day["tokens"] for day in last7)
     cache7 = sum(day["cacheRead"] for day in last7)
     cost7 = round(sum(day["cost"] for day in last7), 4)
-    cost30 = round(sum(day["cost"] for day in last30), 4)
 
     def period(rows):
         tokens = sum(day["tokens"] for day in rows)
@@ -196,6 +184,14 @@ def build(tool: str, plan: str, model: str, models: list[tuple[str, float, float
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    args = parser.parse_args()
+    output = args.output_dir.expanduser()
+    output.mkdir(mode=0o700, parents=True, exist_ok=True)
+    for tool in ("claude", "codex"):
+        if (output / (tool + "-usage.json")).exists() or (output / (tool + "-usage.json")).is_symlink():
+            parser.error("refusing to overwrite an existing usage cache")
     claude = build(
         "claude", "Max 5x", "claude-sonnet-4-5",
         [("claude-sonnet-4-5", 0.62, 0.58),
@@ -209,8 +205,10 @@ def main():
         base_tokens=980_000, base_cost=1.85, util5h=0.22, util7d=0.41)
 
     for tool, data in (("claude", claude), ("codex", codex)):
-        path = CACHE_DIR / f"{tool}-usage.json"
-        path.write_text(json.dumps(data))
+        path = output / f"{tool}-usage.json"
+        data["_demo"] = True
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as handle:
+            json.dump(data, handle)
         print("wrote", path)
 
 

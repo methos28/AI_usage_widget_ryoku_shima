@@ -58,6 +58,7 @@ def main():
             db.execute("insert into session_message values (?,?,?,?,?,?)",
                        (f"message-{index}", sid, "assistant", stamp, stamp,
                         json.dumps(message)))
+    db.close()
     if COLLECTOR.exists():
         env = dict(os.environ, HOME=str(Path(WORK.name) / "home"),
                    OPENCODE_DATA_DIR=str(data_dir))

@@ -2,7 +2,7 @@
 
 A dashboard for your coding agent, built into the Ryoku **Shima** Island
 Desktop page. It shows live sessions, tokens for the period you pick, your top
-models and an activity heatmap. OpenCode and Codex are selectable
+models and an activity heatmap. OpenCode, Codex and Claude are selectable
 from the chip at the top of the card; each one is read from its own local
 cache. Codex quota refresh uses its existing CLI login, and estimated spending
 downloads public model prices without sending login credentials.
@@ -10,16 +10,17 @@ downloads public model prices without sending login credentials.
 This repository provides the standalone installation. The built-in Ryoku
 integration is proposed in [PR #757](https://github.com/Ryoku-dev/ryoku/pull/757).
 
-Claude is hidden from the dropdown and widget settings until its collector is
-validated with real usage data.
+Claude's standalone preview reads native Claude Code Desktop/CLI history,
+account limits and local API-equivalent spending. The downstream Ryoku fork
+still holds Claude out pending live lifecycle acceptance.
 
 **Install time:** about 10 minutes. **Skills needed:** copy and paste.
 
 
 # Widget Preview
 
-Screenshots include earlier layouts. The current agent menu offers OpenCode
-and Codex, and the Codex spending title is **Est. Spending**.
+Screenshots include earlier layouts. The standalone agent menu offers OpenCode,
+Codex and Claude. All agents use the **API Value** label.
 
 Collapsed Sections : 
 
@@ -42,8 +43,8 @@ Expanded Sections :
 ## If you only read one thing
 
 1. `git clone https://github.com/methos28/AI_usage_widget_ryoku_shima.git`
-2. Run `./install.sh` from the clone. It copies the widget, the collector and
-   the systemd drop-in, then reloads the shell.
+2. Run `./install.sh` from the clone. It copies the widget and its bundled
+   collectors, then reloads the shell. No systemd drop-in is required.
 3. **Shima Settings → Island → Desktop page → Your modules** → tick **AI usage**.
 4. Optional: **Shima Settings → Island → Pages → Page width** → **520** for
    more room. The default 440 px page fits the card as it is.
@@ -63,14 +64,15 @@ You need:
   session rollouts. Codex plan-limit bars need an existing ChatGPT login.
 - **Python 3.10 or newer** (`python3 --version`). The collector uses only the
   standard library, so there is nothing to pip install.
+- **Bash and `flock`** for the bundled launcher (`command -v bash flock`).
 - **`git`** for the clone below. No GitHub account is needed; a ZIP download
   works too.
 
 What is in this repository:
 
 ```
-ai-usage/              the Shima module (QML + manifest)
-collector/             the usage collector that feeds it
+ai-usage/              the self-contained Shima module (QML, manifest and bin/)
+collector/             compatibility links to the bundled collector sources
 README.md              this guide
 LICENSE                GPL-3.0
 ```
@@ -104,63 +106,49 @@ cp -r ~/Downloads/opencode-ryoku-shima/ai-usage ~/.config/inir/widgets/
 This folder is yours. `ryoku update` does not touch it, so the module survives
 updates.
 
-### 3. Copy the collector (2 minutes)
+### 3. Check the bundled collectors (30 seconds)
 
-The repository collectors provide the dashboard's daily history, per-period
-model totals, session activity and recorded costs or estimates. OpenCode uses
-`opencode-usage-v2`; Codex uses the existing `codex-usage` script extended here.
+Both executable collectors ship inside the widget folder:
 
-History comes from OpenCode's per-message store, so a session that runs across
-days is credited to each day it actually ran. Session totals true up the
-history when a message row is missing, and the collector never attributes a
-session to a database update that was only a migration touch.
-
-```bash
-mkdir -p ~/.local/bin
-cp ~/Downloads/opencode-ryoku-shima/collector/opencode-usage-v2 ~/.local/bin/
-cp ~/Downloads/opencode-ryoku-shima/collector/codex-usage ~/.local/bin/
-chmod +x ~/.local/bin/opencode-usage-v2
-chmod +x ~/.local/bin/codex-usage
+```text
+ai-usage/bin/collect-usage     launcher for both supported tools
+ai-usage/bin/opencode-usage    OpenCode history and recorded costs
+ai-usage/bin/codex-usage       Codex history, plan limits and spending estimates
 ```
 
-Now tell the Ryoku timer to run it. Create this file:
+The widget resolves these paths relative to its own QML, including custom
+folders with spaces. It collects whenever the page opens and every 15 seconds
+while the dashboard or tile is visible. Its singleton worker stops polling and
+retrying when no card is visible.
+The launcher checks for each CLI or its local data before collecting it.
+The widget does not require the optional `ryoku-rashin` package or its timer.
+
+To run a collection manually:
 
 ```bash
-mkdir -p ~/.config/systemd/user/ryoku-ai-usage.service.d
-cat > ~/.config/systemd/user/ryoku-ai-usage.service.d/override.conf <<'EOF'
-[Service]
-ExecStart=
-ExecStart=-/usr/bin/claude-usage
-ExecStart=-%h/.local/bin/codex-usage
-ExecStart=-%h/.local/bin/opencode-usage-v2
-EOF
-systemctl --user daemon-reload
-systemctl --user start ryoku-ai-usage.service
+~/.config/inir/widgets/ai-usage/bin/collect-usage
 ```
 
-✅ **Check:** the cache for an agent you have used should print `True True`:
+The widget owns `~/.cache/ai-usage/`. Older system collectors still write their
+separate shared caches, so they cannot overwrite this module's data.
+
+Check the private cache for an agent you have used:
 
 ```bash
 python3 - <<'PY'
 import json
 from pathlib import Path
 for tool in ("opencode", "codex"):
-    path = Path.home() / ".cache" / (tool + "-usage.json")
+    path = Path.home() / ".cache" / "ai-usage" / (tool + "-usage.json")
     if path.exists():
         data = json.loads(path.read_text())
         print(tool, "_periods" in data, "_sessions" in data)
 PY
 ```
 
-`False` on the left means the new collector did not run. See Troubleshooting.
-
-> An older collector may omit the history, sessions or estimated-spending
-> fields. Install both repository collectors to use the current dashboard.
-
-> The `ryoku-ai-usage.timer` unit ships with the optional `ryoku-rashin`
-> package. If `systemctl --user status ryoku-ai-usage.timer` says it does not
-> exist, install that package first; the drop-in above has no base unit without
-> it.
+Each used agent should print `True True` after collection. Existing service
+customizations from older installations are left untouched for other shell
+panels; this widget no longer uses them.
 
 ### 4. Reload the shell (30 seconds)
 
@@ -214,8 +202,8 @@ the top row shows two cards side by side.
 - **Open or close a section:** click its row (Trend, Models, Activity). They
   start closed.
 - **Change the period:** open Trend, click the period text, pick one.
-- **Refresh:** nothing to do. The collector runs again every minute while the
-  page is open.
+- **Refresh:** all agents collect every 15 seconds while a card is visible.
+  Opening it requests an immediate refresh. Hidden cards do not poll.
 - **Change the period from the header:** if Trend is collapsed, the first
   click expands it. Click the period label again to open its menu.
 
@@ -229,9 +217,9 @@ page changes material.
 
 | Card | What it tells you |
 |---|---|
-| **Now / Sessions** | Session titles, recorded tokens and activity, with up to two running sessions. The dot breathes while a session runs. Codex's monthly estimate sits below its sessions. |
-| **Limits** | Today's local tokens and server-reported ChatGPT quota windows with reset times. Window lengths follow the response, rather than an assumed plan schedule. API-key request/token limits are not collected. |
-| **Spending / Est. Spending** | OpenCode shows recorded monthly local costs. Codex shows a monthly API-equivalent estimate, with a coverage marker and tooltip. An unavailable estimate displays an em dash. |
+| **Now / Sessions** | Session titles, recorded tokens and activity, with up to two running sessions. The dot breathes while a session runs. Codex and Claude show their monthly estimate below sessions. |
+| **Limits** | Today's local tokens and observed account quotas with local reset dates/times and timezone. Claude captures show their age; missing reset times are explicitly unavailable. API-key request/token limits are not collected. |
+| **API Value** | OpenCode shows recorded monthly local costs. Codex and Claude show monthly API-equivalent estimates, with coverage markers and tooltips. An unavailable estimate displays an em dash. |
 | **Trend** | Bars for the chosen period, cache reads included. Today and Last 24 hours are hourly; other periods use fixed 7/30/45-day windows. Hover a bar to read it. |
 | **Models** | The top three models of the period: cache-inclusive total, share meter, and `I… O… R… CR…` with the cache hit rate. |
 | **Activity** | A full 9 × 7 heatmap of the last 63 days, plus the all-time total (cache reads included), active days and the busiest day. The flame is your current streak; hover it. |
@@ -261,7 +249,7 @@ menu in the card; the rest are for edge cases and you rarely touch them.
 
 | Key | Default | What it does |
 |---|---|---|
-| `tool` | `opencode` | Which agent to read: `opencode` or `codex`. The chip at the top of the card writes this key. |
+| `tool` | `opencode` | Which agent to read: `opencode`, `codex` or `claude` (preview). The chip writes this key. |
 | `moduleWidth` | `480` | Card width in px, clamped to the page body. |
 | `topModels` | `3` | Rows in the Models card. Maximum 3. |
 | `period` | `30` | `today`, `24h`, `7`, `30` or `all`. The menu writes it. |
@@ -269,7 +257,7 @@ menu in the card; the rest are for edge cases and you rarely touch them.
 The module also writes `layoutVersion` once, to migrate old installs. Leave it.
 
 The agent chip only offers agents that have a usage cache on this machine
-(`~/.cache/<tool>-usage.json`). An agent that was never used here is hidden. If
+(`~/.cache/ai-usage/<tool>-usage.json`). An agent that was never used here is hidden. If
 the selected agent's cache disappears, the card falls back to the first
 available agent, OpenCode first.
 
@@ -277,7 +265,7 @@ available agent, OpenCode first.
 
 ## Where the numbers come from
 
-- `~/.cache/opencode-usage.json` - written by the collector. The module only
+- `~/.cache/ai-usage/opencode-usage.json` - written by the bundled collector. The module only
   reads it.
 - OpenCode's collector reads its local store read-only and publishes usage
   metadata such as token counts, models, timestamps, recorded cost and titles.
@@ -285,29 +273,53 @@ available agent, OpenCode first.
   authenticated app-server supplies quota windows over private local stdio.
   Codex handles its saved login; the collector does not open the auth file or
   publish the account response.
+  Session names use Codex's saved `session_index.jsonl` titles, including later
+  renames. Missing names fall back to the first prompt or working directory.
 - Estimated spending downloads the public OpenAI model catalog from
   `https://models.dev/api.json`. This request carries no API key, login token
   or local usage data. Codex's own quota request requires network access.
-- Freshness: the cache is rewritten every minute while the page is open and
-  every five minutes by the systemd timer.
-- Refresh runs the collector directly for OpenCode; the Ryoku service is only a
-  fallback. Claude and Codex still use the service so its install guards apply.
-- The collector takes a lock, writes atomically and keeps day and hour history
-  append-only, so a published total never decreases.
+- Claude reads native local Code history, session registry and observed account
+  limits into `~/.cache/ai-usage/claude-usage.json`; its exact pricing snapshot
+  is described below.
+- Freshness: one widget-owned worker collects all agents every 15 seconds
+  while the dashboard or tile is visible. Hidden cards do not poll.
+  Opening the page requests an immediate collection; overlapping requests share
+  the active run. OAuth quota probes retain their separate cooldown.
+- Refresh invokes the bundled launcher by its own path for all supported
+  agents. `RYOKU_AI_USAGE_COLLECTOR` can override the OpenCode executable; that
+  executable must accept `--cache <path>`. Bundled collectors default to private
+  widget caches and use their own locks; Rashin executables are not required.
+- Collectors take locks and publish atomically. Codex retains token history;
+  Claude token history follows available local transcripts. Both estimate
+  ledgers retain previously collected request values.
+
+### Token accounting and automatic history repair
+
+Codex counts native requests once across copied and continued logs, including
+compaction calls. Older logs use a continuation-aware cumulative fallback.
+For all agents, `O` excludes reasoning, `R` shows reasoning, and cache reads
+and writes have separate counts. Tool results sent to the model remain input.
+Plan-limit percentages come from the provider, independently of local totals.
+
+The first refresh repairs affected usage and spending records automatically.
+It preserves saved daily price snapshots and retains a private pre-migration
+ledger backup. No new login, API key, or manual cache deletion is required.
+Unknown model prices and unsupported processing tiers remain unpriced.
 
 ### Codex spending estimates and login support
 
-Codex reads `~/.cache/codex-usage.json`, written by the installed repository
-collector. It supplies account quota windows, local token history, model rows
+The module reads `~/.cache/ai-usage/codex-usage.json`, written by its bundled
+Codex collector. It supplies account quota windows, local token history, model rows
 and sessions. A ChatGPT browser or device-code login supports plan quota
 windows. API-key and Bedrock accounts do not reuse historical ChatGPT limits;
 Platform API request/token limits are not collected. Other credential modes
 have not all been verified with real accounts.
 
-**Est. Spending is a Standard API-equivalent token estimate, not a bill,
+**API Value is an API-equivalent token estimate, not a bill,
 wallet balance or additional Plus charge.** It does not import billing history
 or track top-ups. Session token categories are priced using saved daily model
-rates, with duplicate events counted once.
+rates, with duplicate events counted once. Published Fast/Priority, Flex, Batch
+and Ultrafast rates and per-request context tiers are supported where available.
 
 The existing collector keeps private monthly ledgers at
 `~/.local/state/ai-usage/spending-YYYY-MM.json` (or under `XDG_STATE_HOME`).
@@ -319,12 +331,73 @@ Unknown model prices or unsupported service tiers are also excluded.
 refreshes can use previously saved prices, marked stale. If no priced usage is
 available, the amount displays an em dash. Hover the spending title for details.
 
-### Deferred Claude support
+### Claude Desktop / CLI
 
-Claude remains hidden from both agent selectors pending collector enrichment
-and testing with real usage data. Shared cache-reading support and demo helpers
-remain in the source for that follow-up. Creating a Claude cache does not add
-Claude to the dropdown.
+The bundled `bin/claude-usage` reads `CLAUDE_CONFIG_DIR/projects/**/*.jsonl`
+(default `~/.claude/projects`) into the private Claude widget cache. Desktop
+Code sessions and CLI sessions using that store share the same collector.
+Cloud-only Desktop sessions, ordinary chat and other devices are outside the
+local token history. Responses are deduplicated by message/request identity;
+thinking is included once in output pricing. Cache reads and cache writes stay
+separate from uncached input. Explicit incomplete response placeholders are
+excluded and mark the estimate partial.
+
+Claude Desktop's native `~/.config/Claude/plan-usage-history.json` stores actual
+5-hour/7-day account percentages. The collector checks matching account and
+organization metadata before displaying them. These account limits include
+shared-account use outside this machine; local tokens and spending do not.
+Captures older than 20 minutes, or whose recorded reset has passed, are labelled
+last-known. Missing data is unavailable, never zero. Desktop's compact history
+does not contain reset times, but its complete cached account-usage response
+does. The collector reads only the bound usage endpoint's hashed Chromium cache
+entries, validates keys/checksums/HTTP dates, and extracts the real five-hour and
+weekly deadlines. Reset dates/times appear beneath both bars, as for Codex,
+in the machine's local timezone (for example `10 Nov, 12:19 AM IST`).
+Passed deadlines are not rolled into invented new windows. A missing deadline
+shows `reset time unavailable`. Current Zstandard-compressed Desktop responses
+use Python 3.14's standard decompressor; unsupported cache formats fail safely
+back to observed percentages without guessed reset times.
+Existing readable Claude Code subscription OAuth credentials can supply live
+quotas and reset times without Desktop. On Linux these are the CLI's saved
+`.credentials.json` under `~/.claude` or `CLAUDE_CONFIG_DIR`. API-key/cloud-provider
+logins do not supply these subscription quota windows. Requests and failures are
+throttled for five minutes. The collector does not
+decrypt Desktop cookies, sign in, refresh credentials or launch Claude.
+
+Running sessions require a verified native PID/start time plus native status or
+an unfinished turn. New completion/idle events end running state even if the
+app stays open. All agents share the 15-second cadence while a card is visible.
+Claude account measurements still depend on a fresh Desktop capture or saved
+CLI subscription credentials. An inaccessible process produces unknown activity
+rather than a fabricated live session.
+
+Claude **API Value** uses a separate private
+`~/.local/state/ai-usage/claude-spending-YYYY-MM.json` ledger and frozen daily
+prices. The shared widget-owned price catalog covers current and legacy Claude
+models, including Sonnet, Haiku, Opus, Fable and Mythos. Published snapshot IDs
+and provider prefixes resolve explicitly. Haiku 5.5's higher tier applies per
+request above 100,000 prompt tokens, including cache reads and writes. Opus
+Fast and Batch use their published rates; thinking counts as output once.
+Native TTL splits distinguish five-minute and one-hour cache writes.
+
+Both Codex and Claude refresh public price metadata automatically from the
+provider pricing docs and the models.dev catalog. The bundle includes offline
+rates and retains a private last-good catalog. Unknown new model IDs trigger
+a throttled refresh. No extra login, API key or package is required. Catalogs
+refresh daily; failures retry after 15 minutes while saved rates remain usable.
+All price requests contain public URLs only, without prompts, usage or credentials.
+
+Today's saved snapshots gain missing models and service tiers without changing
+known verified rates. A successful refresh can replace today's stale fallback
+rates. Earlier daily snapshots stay frozen; days without a price snapshot
+remain unpriced. Unpublished models, unsupported tiers, missing token metadata
+and additional server-tool fees are disclosed through partial coverage. This
+is local API value, not a subscription charge.
+
+This follows [CodexBar's Claude local-cost strategy](https://github.com/steipete/CodexBar/blob/7447bc77c2497323d9c41e40164ce705533493c8/docs/claude.md):
+deduplicate native responses, price input/output/cache classes independently,
+and keep account quotas separate. The widget preserves its existing policy of
+not repricing earlier days with current rates.
 
 ---
 
@@ -333,10 +406,10 @@ Claude to the dropdown.
 | What you see | What to do |
 |---|---|
 | No card on the Desktop page | The module is off. Shima Settings → Island → Desktop page → Your modules → tick AI usage. |
-| `No opencode usage yet` | Open OpenCode once, then wait a minute. Or run `systemctl --user start ryoku-ai-usage.service`. |
+| `No opencode usage yet` | Use OpenCode once, then refresh the widget or run `~/.config/inir/widgets/ai-usage/bin/collect-usage`. |
 | Models or sessions empty | Check that the selected agent has recorded usage, then verify the repository collector and `_periods` cache field from step 3. |
-| Always `no session running` | Same cause: the cache has no `_sessions`. Redo step 3. |
-| Numbers frozen | The page is closed, so the minute refresh is idle. Reopen it, or start the service by hand. |
+| Always `no session running` | Verify the selected agent is executing a turn. For Claude, native idle/completion ends activity; inaccessible PID metadata shows `session status unavailable`. |
+| Numbers frozen | Reopen the page to resume collection, or run the bundled launcher by hand. Check its output for errors. |
 | Card looks clipped | Page too narrow. Shima Settings → Island → Pages → Page width 520 (the default 440 fits; this is for extra room). |
 | Period menu does not open | Click the period label at the right of the Trend header. If it stays unresponsive, reload the shell. |
 | Codex spending has an asterisk or em dash | Hover the title. Some dates/models may lack saved prices, or the public price refresh may be unavailable. |
@@ -354,13 +427,12 @@ tail -50 ~/.local/state/ryoku/surfaces/shell.log
 
 1. In Shima Settings, remove it from **Island → Desktop page → Your modules**.
 2. Delete the folder: `rm -rf ~/.config/inir/widgets/ai-usage`
-3. Optional, remove the repository collectors:
-   `rm ~/.local/bin/opencode-usage-v2 ~/.local/bin/codex-usage` and
-   `rm ~/.config/systemd/user/ryoku-ai-usage.service.d/override.conf`, then
-   `systemctl --user daemon-reload`.
-4. `ryoku-shell reload`.
+3. `ryoku-shell reload`.
 
-Usage caches and persistent spending ledgers are retained after uninstall.
+Private usage caches and persistent spending ledgers are retained after uninstall.
+Older installations may have separate global collector copies or service
+overrides. Those are not created by the current installer and are left alone;
+review their other consumers before removing them.
 
 ---
 
@@ -374,9 +446,8 @@ ai-usage/components/            one card or primitive per file
 ai-usage/UsageModel.qml         cache reader, ticker, session filter
 ai-usage/AiUsageTile.qml        the same numbers as a plain desktop tile
 ai-usage/widget.json            manifest; iris.main is what Shima loads
-collector/opencode-usage-v2     the collector that writes the cache
-collector/codex-usage           Codex quotas and deduplicated rollout token history
-systemd/                        the Ryoku timer drop-in
+ai-usage/bin/                  canonical collector scripts and local launcher
+collector/                     compatibility symlinks to ai-usage/bin/
 install.sh                      one-command install
 test/test_collector.py          collector fixtures
 test/test_codex_usage.py        Codex replay, plan-window and reset fixtures
@@ -410,7 +481,8 @@ the account's quota percentages. It also covers daily price snapshots, missing
 historical prices, offline fallback, event deduplication, cache permissions,
 RPC cleanup/redaction and account-type changes.
 
-The standalone suite contains 44 tests: six OpenCode, 32 Codex and six widget
+The standalone suite contains 126 tests: six OpenCode, 43 Codex, eight Claude
+integration, 24 Claude quota, 20 Claude lifecycle, 13 Claude spending and 12 widget
 tests, plus the cache contract. QML compilation checks require Quickshell and
 Ryoku imports. The live preview was checked on stable Ryoku; full runtime
 validation on an unstable installation remains separate from these source
@@ -433,3 +505,11 @@ checks. The host-side built-in discovery changes are in the linked Ryoku PR.
 
 GPL-3.0. See `LICENSE`. The widget is built for Ryoku Shima; Shima's iNiR lineage is
 by snowarch. No iNiR code is copied into this repository.
+
+### Claude Desktop preview
+
+Claude reads local desktop transcript history without a CLI. Real
+tokens, account limits, Sonnet 5.5 API value and idle state are verified. Native
+active lifecycle fixtures pass; one fresh user-run Desktop turn remains the
+final live check. The shipped fork remains held out until acceptance. No
+authentication settings are changed. See the Claude data-source section above.

@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- Use Codex's saved session names, including later renames, instead of the first
+  prompt when a name exists. Retain prompt and directory fallbacks.
+- Adopt upstream visible-only collection and the two-minute Codex quota cache.
+
+- Fix merged dropdown highlights with one shared row background. Keep the
+  selected-option checkmark while hovering other agent or period options.
+
+- Show local reset dates/times and timezone instead of rounded hours. Clarify
+  Desktop/CLI quota support and test CLI subscription resets without Desktop.
+
+- Show Claude five-hour and weekly reset countdowns from validated Desktop
+  usage-response caches. Preserve stale deadlines and explicit unavailable
+  states; refresh OAuth once at a reset boundary. No credential decryption.
+
+- Add a Sonnet-to-Haiku same-session counting regression covering cache writes,
+  thinking/output separation and successive response checkpoints. Independent
+  recount matches the dashboard; all 118 primary tests pass.
+
+- Rename the spending label to API Value for OpenCode, Codex and Claude.
+
+- Enable standalone Claude preview with observed Desktop account quotas, native
+  session lifecycle and separate Sonnet 5.5 API-value estimates. Show quota
+  capture age and unknown/partial data explicitly. Refresh Claude every five
+  seconds without polling the other agents. Add Claude helper/integration/UI
+  regressions; 117 primary tests and cache/QML gates pass.
+
+- Correct Codex continuation overcounts, include request-only compactions, and
+  reconcile request mirrors. Separate output, reasoning and cache-write counts.
+  Repair affected history automatically while preserving saved daily prices.
+
+- Bundle both collectors inside the widget and invoke them by local paths.
+  Collect on first load and use private caches so older system collectors cannot
+  overwrite widget data. Standalone installs no longer create service overrides.
 - Add Codex Est. Spending with private monthly ledgers, saved daily public
   prices, deduplicated usage and visible incomplete or stale coverage.
 - Preserve missing historical prices as unpriced; estimates do not represent
@@ -11,7 +44,7 @@
   to an API-key or Bedrock account.
 - Fix desktop-tile bindings, the menu icon import, saved-agent fallback and
   compact caption/spending alignment. Share the dropdown component.
-- Add isolated cache, quota, security, spending and QML regressions, with 44
+- Add isolated cache, quota, security, spending and QML regressions, with 59
   standalone tests plus the cache contract.
 - Update installation and data-source documentation for the current collectors.
 

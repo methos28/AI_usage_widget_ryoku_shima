@@ -34,6 +34,10 @@
                 {
                     "label": "Codex",
                     "value": "codex"
+                },
+                {
+                    "label": "Claude",
+                    "value": "claude"
                 }
             ]
         },

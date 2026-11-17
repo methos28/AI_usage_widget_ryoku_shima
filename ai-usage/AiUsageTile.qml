@@ -1,6 +1,6 @@
 pragma ComponentBehavior: Bound
 
-// AI usage desktop tile — the quiet wallpaper face of the same module data.
+// AI usage desktop tile: the quiet wallpaper face of the same module data.
 // The bar face lives in IrisCompact.qml; both read UsageModel.
 import QtQuick
 import inir
@@ -9,6 +9,7 @@ import inir.modules.common
 import inir.modules.common.widgets
 import inir.modules.common.functions
 import inir.modules.background.widgets
+import "components"
 
 AbstractBackgroundWidget {
     id: root
@@ -17,7 +18,12 @@ AbstractBackgroundWidget {
 
     readonly property string tool: CustomWidgets.getConfigValue("ai-usage", "tool", "opencode")
     readonly property var labels: ({ opencode: "OpenCode", claude: "Claude", codex: "Codex" })
-    readonly property string toolLabel: root.labels[root.tool] ?? root.tool
+    readonly property string activeTool: {
+        if (!availability.ready || !usage.collectionReady) return root.tool
+        const available = ["opencode", "codex", "claude"].filter(tool => availability[tool])
+        return available.includes(root.tool) ? root.tool : String(available[0] ?? "opencode")
+    }
+    readonly property string toolLabel: root.labels[root.activeTool] ?? root.activeTool
 
     implicitWidth: Math.round(172 * scaleFactor)
     implicitHeight: Math.round(64 * scaleFactor)
@@ -25,9 +31,14 @@ AbstractBackgroundWidget {
     resizeMinWidth: 120
     resizeMinHeight: 48
 
+    AgentAvailability {
+        id: availability
+    }
+
     UsageModel {
         id: usage
-        tool: root.tool
+        tool: root.activeTool
+        onCollected: availability.reloadAll()
     }
 
     Rectangle {
@@ -64,10 +75,10 @@ AbstractBackgroundWidget {
         }
 
         StyledText {
-            text: !usage.has ? "—"
+            text: !usage.has ? "-"
                 : usage.hasPlan && usage.windows.length > 0
                     ? usage.windows[0].pct + "% · " + usage.windows[0].label
-                    : usage.kmg(usage.today) + " tokens today"
+                    : Translation.tr("%1 tokens today").arg(usage.kmg(usage.today))
             font {
                 pixelSize: Math.round(Appearance.font.pixelSize.large * root.scaleFactor)
                 family: Appearance.font.family.numbers
