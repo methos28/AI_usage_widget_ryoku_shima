@@ -30,6 +30,7 @@ AiUsageGlassCard {
     AiUsageSpendBody {
         id: body
         page: card.page
+        usage: card.usage
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.leftMargin: page.pad

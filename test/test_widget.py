@@ -128,7 +128,7 @@ assert.equal(activeTool(),'opencode');
         expression=re.search(r'^\s+share: (.+)$',source,re.M).group(1)
         node(SETUP+'''
 Translation.tr=key=>key==='%1% used'?'utilise : %1 %':key;
-const modelData={pct:42};
+const windowData={pct:42};
 const share='''+expression+''';
 assert.equal(share,'utilise : 42 %');
 ''')
@@ -569,7 +569,7 @@ for (const open of [false,true]) for (const codex of [false,true]) {
                                source, re.S).group(1)
         script = SETUP + '\nfunction metric() { return (' + expression + '); }'
         script += '''
-const root={};
+const root={dataReady:true};
 const usage={has:false,hasPlan:false,windows:[],today:123,kmg:n=>String(n)};
 assert.equal(metric(),'-');
 usage.has=true;
@@ -579,6 +579,8 @@ usage.windows=[{pct:48,label:'30d'}];
 assert.equal(metric(),'48% · 30d');
 usage.windows=[];
 assert.equal(metric(),'123 tokens today');
+root.dataReady=false;
+assert.equal(metric(),'-');
 '''
         node(script)
 

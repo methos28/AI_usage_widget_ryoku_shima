@@ -184,6 +184,7 @@ AiUsageGlassCard {
         AiUsageSpendBody {
             id: spendBody
             page: card.page
+            usage: card.usage
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: spendHairline.bottom

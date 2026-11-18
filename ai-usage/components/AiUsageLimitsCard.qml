@@ -28,6 +28,26 @@ AiUsageGlassCard {
     readonly property var displayedWindows: usage.windows.length > 0 ? usage.windows
         : page.activeTool === "claude" && usage.quota?.stale === true
             ? usage.normalizeWindows({ _windows: usage.quota.last_known_windows ?? [] }) : []
+    property var windowRows: []
+    function updateWindows(): void {
+        if (!card.usage.switching) card.windowRows = card.displayedWindows
+    }
+    onDisplayedWindowsChanged: Qt.callLater(card.updateWindows)
+    Component.onCompleted: Qt.callLater(card.updateWindows)
+    Connections {
+        target: card.usage
+        function onSwitchingChanged(): void {
+            if (card.usage.switching) card.windowRows = []
+            else Qt.callLater(card.updateWindows)
+        }
+    }
+    readonly property QtObject todayValue: AiUsageAnimatedValue {
+        targetValue: Number(card.usage.today)
+        available: card.usage.has
+        active: card.visible
+        hold: card.usage.switching
+        contextKey: card.page.activeTool + ":today"
+    }
 
     Column {
         id: body
@@ -70,7 +90,8 @@ AiUsageGlassCard {
                 IrisText {
                     id: todayMetric
                     role: IrisText.Metric
-                    text: usage.kmg(usage.today)
+                    text: card.todayValue.hasValue ? usage.kmg(Math.round(card.todayValue.value)) : "-"
+                    opacity: card.todayValue.opacity
                     font.pixelSize: Math.round(26 * IrisStyle.density)
                 }
                 Column {
@@ -100,15 +121,19 @@ AiUsageGlassCard {
         }
 
         Repeater {
-            model: card.displayedWindows
+            model: card.windowRows.length
             AiUsageWindowRow {
-                required property var modelData
+                required property int index
+                readonly property var windowData: card.windowRows[index] ?? ({})
                 width: parent.width
-                label: modelData.label
-                caption: modelData.caption
-                share: Translation.tr("%1% used").arg(modelData.pct)
-                proportion: modelData.pct / 100
-                resetLabel: modelData.resetTs > 0 ? card.usage.resetAt(modelData.resetTs, page.translateTime)
+                label: windowData.label ?? ""
+                caption: windowData.caption ?? ""
+                share: Translation.tr("%1% used").arg(windowData.pct ?? 0)
+                proportion: Number(windowData.pct ?? 0) / 100
+                contextKey: card.page.activeTool + ":" + (windowData.label ?? "")
+                hold: card.usage.switching
+                animatePercentage: true
+                resetLabel: windowData.resetTs > 0 ? card.usage.resetAt(windowData.resetTs, page.translateTime)
                     : page.activeTool === "claude" ? Translation.tr("reset time unavailable") : ""
             }
         }

@@ -19,6 +19,16 @@ Column {
     property string share: ""
     property real proportion: 0
     property string resetLabel: ""
+    property string contextKey: ""
+    property bool hold: false
+    property bool animatePercentage: false
+    readonly property QtObject transition: AiUsageAnimatedValue {
+        targetValue: Math.max(0, Math.min(1, windowRow.proportion))
+        active: windowRow.visible
+        hold: windowRow.hold
+        contextKey: windowRow.contextKey
+        duration: IrisStyle.duration(360)
+    }
     width: parent ? parent.width : 0
     spacing: Math.round(3 * IrisStyle.density)
 
@@ -61,7 +71,10 @@ Column {
             font.weight: IrisStyle.weight(Font.DemiBold)
             font.family: IrisStyle.fontNumbers
             color: windowRow.proportion >= 0.8 ? windowRow.ink : IrisStyle.text
-            text: windowRow.share
+            text: windowRow.animatePercentage
+                ? Translation.tr("%1% used").arg(Math.round(windowRow.transition.value * 100))
+                : windowRow.share
+            opacity: windowRow.transition.opacity
         }
     }
     Rectangle {
@@ -70,9 +83,10 @@ Column {
         radius: height / 2
         color: ColorUtils.applyAlpha(IrisStyle.muted, 0.22)
         Rectangle {
+            opacity: windowRow.transition.opacity
             height: parent.height
             radius: parent.radius
-            width: Math.max(0, Math.min(1, windowRow.proportion)) * parent.width
+            width: Math.max(0, Math.min(1, windowRow.transition.value)) * parent.width
             color: windowRow.ink
         }
     }

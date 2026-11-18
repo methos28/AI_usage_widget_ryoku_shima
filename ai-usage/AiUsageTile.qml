@@ -24,6 +24,7 @@ AbstractBackgroundWidget {
         return available.includes(root.tool) ? root.tool : String(available[0] ?? "opencode")
     }
     readonly property string toolLabel: root.labels[root.activeTool] ?? root.activeTool
+    readonly property bool dataReady: !usage.switching && usage.loadedTool === root.activeTool
 
     implicitWidth: Math.round(172 * scaleFactor)
     implicitHeight: Math.round(64 * scaleFactor)
@@ -75,7 +76,7 @@ AbstractBackgroundWidget {
         }
 
         StyledText {
-            text: !usage.has ? "-"
+            text: !usage.has || !root.dataReady ? "-"
                 : usage.hasPlan && usage.windows.length > 0
                     ? usage.windows[0].pct + "% · " + usage.windows[0].label
                     : Translation.tr("%1 tokens today").arg(usage.kmg(usage.today))
@@ -93,7 +94,7 @@ AbstractBackgroundWidget {
             height: Math.round(4 * root.scaleFactor)
             radius: height / 2
             color: ColorUtils.applyAlpha(root.colText, 0.15)
-            visible: usage.has && usage.hasPlan && usage.windows.length > 0
+            visible: root.dataReady && usage.has && usage.hasPlan && usage.windows.length > 0
             Rectangle {
                 width: parent.width * (usage.windows[0]?.pct ?? 0) / 100
                 height: parent.height

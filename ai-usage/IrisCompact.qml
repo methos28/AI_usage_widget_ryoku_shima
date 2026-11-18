@@ -109,7 +109,12 @@ Item {
     readonly property int step: Math.round(2 * IrisStyle.density)
 
     implicitWidth: root.cardWidth
-    implicitHeight: grid.implicitHeight
+    implicitHeight: usageModel.switching
+        ? Math.max(grid.implicitHeight, root._loadedHeight, Math.round(120 * IrisStyle.density))
+        : grid.implicitHeight
+    property real _loadedHeight: 0
+    readonly property bool dataReady: !usageModel.switching && usageModel.loadedTool === root.activeTool
+    onDataReadyChanged: if (root.dataReady) Qt.callLater(() => root._loadedHeight = grid.implicitHeight)
 
     AgentAvailability {
         id: availability
@@ -429,6 +434,8 @@ Item {
             width: parent.width
             spacing: root.gap
             visible: usageModel.has
+            opacity: root.dataReady ? 1 : 0
+            enabled: root.dataReady
             readonly property bool spendHere: !root.planAgent && root.hasSpend
             readonly property int count: (root.showLimits ? 1 : 0) + 1 + (spendHere ? 1 : 0)
             readonly property real half: Math.round((width - spacing) / 2)
@@ -467,6 +474,8 @@ Item {
                 usage: usageModel
             width: parent.width
             visible: usageModel.has && root.trendBuckets.length > 0
+            opacity: root.dataReady ? 1 : 0
+            enabled: root.dataReady
             onPeriodMenuRequested: trigger => root.openPeriodMenu(trigger)
         }
 
@@ -475,6 +484,8 @@ Item {
                 usage: usageModel
             width: parent.width
             visible: usageModel.has && root.periodModels.length > 0
+            opacity: root.dataReady ? 1 : 0
+            enabled: root.dataReady
         }
 
         AiUsageActivityCard {
@@ -482,6 +493,8 @@ Item {
                 usage: usageModel
             width: parent.width
             visible: usageModel.has && usageModel.days.length > 0
+            opacity: root.dataReady ? 1 : 0
+            enabled: root.dataReady
         }
 
         AiUsageEmptyCard {
@@ -493,6 +506,17 @@ Item {
             // frame, and a no-cache agent shows this only once the load failed.
             visible: !usageModel.has && !usageModel.switching
         }
+    }
+
+    IrisText {
+        width: root.cardWidth
+        y: agentBar.height + root.gap
+            + Math.max(0, root.implicitHeight - agentBar.height - root.gap - implicitHeight) / 2
+        visible: usageModel.switching
+        horizontalAlignment: Text.AlignHCenter
+        role: IrisText.Meta
+        color: IrisStyle.muted
+        text: Translation.tr("Loading usage")
     }
 
     // One dropdown implementation serves both pickers.

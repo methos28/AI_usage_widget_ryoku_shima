@@ -15,9 +15,9 @@ Item {
     property string tool: "opencode"
     property bool refreshing: false
     property bool collectionReady: false
-    // True while a tool switch is waiting for the new cache. The old card stays
-    // on screen instead of flashing the empty state and its refresh button.
+    // Views preserve their layout while masking the previous agent's snapshot.
     property bool switching: false
+    property string loadedTool: ""
     signal collected
 
     // -- parsed state --
@@ -171,16 +171,20 @@ Item {
         }
     }
     onToolChanged: {
-        // Keep the current numbers visible while the other cache loads. A
-        // switch whose cache is missing or unreadable ends in empty(), either
-        // from onLoadFailed or from switchTimer, so nothing stays stale.
+        // Invalidate in-flight reads before requesting the selected cache.
+        // Keep raw history internally until that read lands; views mask it.
+        root._readEpoch++
+        root._pendingRead = false
+        root._pendingText = ""
+        root._missing = true
         root.switching = true
         switchTimer.restart()
-        cacheFile.reload()
+        Qt.callLater(root.reloadCache)
     }
 
     function empty() {
         root.has = false
+        root.loadedTool = ""
         root.fresh = false
         root._modifiedAt = 0
         root._sourceStale = true
@@ -318,6 +322,7 @@ Item {
         } finally {
             // The load has landed, as data or as a genuine empty cache.
             switchTimer.stop()
+            root.loadedTool = root.has ? String(root.tool || "") : ""
             root.switching = false
         }
     }
@@ -328,6 +333,28 @@ Item {
 
     property string _pendingText: ""
     property bool _missing: true
+    property int _readEpoch: 0
+    property bool _pendingRead: false
+    property string _pendingTool: ""
+    property int _pendingEpoch: 0
+    property string _statText: ""
+    property string _statTool: ""
+    property int _statEpoch: -1
+
+    function reloadCache(): void {
+        cacheFile.reload()
+    }
+
+    function startStat(): void {
+        if (stat.running || !root._pendingRead) return
+        root._pendingRead = false
+        if (root._pendingTool !== root.tool || root._pendingEpoch !== root._readEpoch) return
+        root._statText = root._pendingText
+        root._statTool = root._pendingTool
+        root._statEpoch = root._pendingEpoch
+        stat.command = ["stat", "-c", "%Y", root.cacheDir + "/" + root._statTool + "-usage.json"]
+        stat.running = true
+    }
 
     FileView {
         id: cacheFile
@@ -337,12 +364,20 @@ Item {
         printErrors: false
         onFileChanged: reload()
         onLoaded: {
+            const owner = String(cacheFile.path).split("/").pop().replace(/-usage\.json$/, "")
+            if (owner !== root.tool) return
             root._missing = false
             root._pendingText = cacheFile.text()
-            stat.running = false
-            stat.running = true
+            root._pendingTool = owner
+            root._pendingEpoch = root._readEpoch
+            root._pendingRead = true
+            Qt.callLater(root.startStat)
         }
         onLoadFailed: {
+            const owner = String(cacheFile.path).split("/").pop().replace(/-usage\.json$/, "")
+            if (owner !== root.tool) return
+            root._readEpoch++
+            root._pendingRead = false
             root._missing = true
             root._pendingText = ""
             switchTimer.stop()
@@ -353,11 +388,15 @@ Item {
 
     Process {
         id: stat
-        command: ["stat", "-c", "%Y", root.cachePath]
         stdout: StdioCollector { id: statOutput }
-        onExited: {
-            if (!root._missing)
-                root.parse(root._pendingText, parseInt(statOutput.text.trim()) || 0)
+        onExited: (exitCode, exitStatus) => {
+            const superseded = root._pendingRead && root._pendingTool === root._statTool
+                && root._pendingEpoch === root._statEpoch && root._pendingText !== root._statText
+            if (!superseded && !root._missing && root._statTool === root.tool && root._statEpoch === root._readEpoch) {
+                if (exitCode === 0) root.parse(root._statText, parseInt(statOutput.text.trim()) || 0)
+                else { root.empty(); root.switching = false }
+            }
+            Qt.callLater(root.startStat)
         }
     }
     // A cache that appeared after first scan is a plain reload away.
@@ -404,6 +443,8 @@ Item {
         onTriggered: {
             if (!root.switching)
                 return
+            root._readEpoch++
+            root._pendingRead = false
             root.switching = false
             root.empty()
         }

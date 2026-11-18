@@ -35,6 +35,12 @@ active collection is shared instead of starting overlapping processes;
 private-lock contention retries while a card is visible. It does not start a
 separate login daemon.
 
+Quota fills and numeric totals ease toward newly collected values. Initial
+values load directly, with a brief value fade. Agent changes retain the layout
+and show a neutral loading state until the selected snapshot is ready. Motion pauses
+on hidden surfaces, and reduced motion uses immediate updates. Display
+transitions do not change the recorded totals or API Value calculation.
+
 A configured Claude login can provide quota data before the first local project
 exists. Machines without Claude state do not gain an empty Claude entry.
 

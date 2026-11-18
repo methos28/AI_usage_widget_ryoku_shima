@@ -427,3 +427,19 @@ Published e7297aec6 to methos28/ryoku:ai-usage-dashboard after merging official 
 ## All current audit fixes validated (2026-11-17)
 
 All ten findings are repaired, with 18 permanent regression cases including real Qt, overlap deduplication, login privacy and time-bound checks. Both primary and actual fork runtime suites pass all 222 cases without skips. The user-owned live module is updated, native data parity is verified and all 20 historical price dictionaries are unchanged. Publish the same feature branch under the earlier commit/push authorization; keep the fork delta limited to its eight runtime/guide/changelog paths.
+
+## Audit fixes published (2026-11-17)
+
+The complete audited repair is installed and published as d4df8688a on ai-usage-dashboard; primary code is committed as c9c3eef. All 222 primary and 222 fork-targeted cases pass. GitHub verifies three ahead, zero behind official unstable-dev, with eight related paths. No audited bug fix remains pending from BUG_AUDIT_2026-11-17.md. The earlier statements that findings were unfixed are historical.
+
+## Active live preview: metric transitions (2026-11-17)
+
+User approval is pending. The live module now previews 280-ms quota fills, 300-ms token/API Value interpolation and 150-ms state fades using Shima motion settings. Both 227-case runs and QML/integration checks pass. The supported live bundle matches primary; the feature-source mirror is uncommitted. Heads remain primary 72a6730 and fork 98058bcd8, with no new commit or push. Preserve this explicit hold until user visual approval. Full before-state backup and rollback instructions: /home/methos/.local/share/ryoku/ai-usage-backup/transitions-preview-20261117-151845.
+
+## Live preview follow-up: agent-switch handoff (2026-11-17)
+
+The user-reported stale-state flash is repaired and installed. Selected snapshots now carry read ownership/generation, newer queued versions supersede old ones, and the Island/tile mask prior-agent stats during loading. Retained quota rows and numeric transition state are cleared on switches; regular same-agent transitions remain enabled. All six directions and rapid/missing-cache cases pass in native frame tests. Both full suites pass 233 cases. Still no commit/push; user live approval remains pending. Preserve both preview backups.
+
+## Latest live motion revision and measurements (2026-11-18)
+
+User testing is still pending; no commit/push. Defaults are now 360/380/180 ms for bars/numbers/fades with gentle easing. Both 233-case suites and QML/integration gates pass. The live module matches source. Hardware rendering comparisons show unchanged 8-ms p95 frame intervals and small animation-only estimated average cost at 15-second refresh (0.013 percent total CPU, 0.033 percent GPU). Full open-shell baseline cost is larger and reported separately. Read PERFORMANCE_2026-11-18.md for measured figures and limits. Current-revision backup: /home/methos/.local/share/ryoku/ai-usage-backup/motion-tuning-20261118-134810.

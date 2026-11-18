@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Keep agent switches on a neutral loading state until the selected snapshot
+  is ready. Discard superseded reads and clear retained quota/animation state.
+
+- Add calm transitions for quota fills, token counts and API Value updates.
+  Preserve first-load values and respect hidden surfaces and reduced motion.
+
 - Preserve message IDs learned from matched copies so a distinct request from
   a third OpenCode store cannot be discarded as another anonymous copy.
 

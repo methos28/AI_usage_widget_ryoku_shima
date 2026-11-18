@@ -17,6 +17,7 @@ import inir.modules.iris.components
 
 Item {
     required property var page
+    required property var usage
     id: body
     // Vertical breathing room the figures want around them. The standalone
     // Spend card pads its box with it, and the block inside Now keeps its
@@ -24,6 +25,13 @@ Item {
     // places instead of the amount sitting on a card edge.
     readonly property int padY: Math.round(14 * IrisStyle.density)
     implicitHeight: column.implicitHeight
+    readonly property QtObject amount: AiUsageAnimatedValue {
+        targetValue: Number(body.page.monthly.current)
+        available: body.usage.has && body.page.monthly.available !== false
+        active: body.visible
+        hold: body.usage.switching
+        contextKey: body.page.activeTool + ":" + body.page.monthly.label
+    }
 
     Column {
         id: column
@@ -80,8 +88,8 @@ Item {
                 IrisText {
                     id: spendMetric
                     role: IrisText.Metric
-                    text: body.page.monthly.available === false ? "-"
-                        : body.page.money(body.page.monthly.current)
+                    text: body.amount.hasValue ? body.page.money(body.amount.value) : "-"
+                    opacity: body.amount.opacity
                     width: Math.min(implicitWidth,
                         Math.max(0, spendRow.width - spendMonth.implicitWidth - spendRow.spacing))
                     fontSizeMode: Text.Fit
