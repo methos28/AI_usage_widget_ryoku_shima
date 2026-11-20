@@ -66,3 +66,7 @@ There is no active preview hold or unimplemented item from the November 17
 bug audit. Ask for the user's next project goal instead of redoing old phases.
 When making new changes, preserve the source-first workflow and append evidence
 to the project log.
+
+The portable continuity payload was published as 71383fa. A subsequent
+documentation commit records that verification. Clone/update main for the
+current checkpoint; there is no outstanding export or preview hold.

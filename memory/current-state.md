@@ -50,3 +50,7 @@ is awaiting implementation. Ask the user for their next goal.
 The original host now reports Ryoku 1.1.0. Its 32-file custom widget was checked
 read-only and exactly matches this source. See local-machine.md for the limits
 of that observation; do not perform unrelated system actions during a clone.
+
+## Publication verified
+
+The complete continuity payload 71383fa is published on standalone main, including the four earlier approved application commits. A documentation completion commit may follow it; use current Git HEAD. GitHub verified four bundled skills, 18 original project memory snapshots and the complete current application/tests. There is no pending checkpoint push. A new session should verify its checkout and ask for the next user goal.

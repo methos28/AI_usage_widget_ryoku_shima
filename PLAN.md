@@ -36,3 +36,7 @@ machine's bootloader preferences to another host.
 ## Checkpoint validation
 
 All 235 cases passed in the working tree and a fresh staged export with a clean HOME. The source-only run without Quickshell passed 216 checks and skipped 19 GUI/host-specific checks without failures. All four skills validate. Staged contents contain no detected credential patterns or forbidden runtime files. Current validation is on the original host's installed Ryoku 1.1.0 imports; another PC still needs its own environment checks.
+
+## Export complete
+
+Continuity payload 71383fa is verified on standalone main, with all four prior application commits included. The completion record is committed as a documentation follow-up. Nothing remains to publish from this checkpoint; continue from the user's next goal after verifying the new checkout.
