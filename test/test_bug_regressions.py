@@ -9,6 +9,7 @@ import runpy
 import sqlite3
 import tempfile
 import subprocess
+import shutil
 import sys
 import unittest
 
@@ -103,6 +104,7 @@ class Audit(unittest.TestCase):
                 module['throttled_rpc']()
             self.assertEqual(fetch.call_count, 2)
 
+    @unittest.skipUnless(shutil.which('qs'), 'Quickshell required for native state checks')
     def test_native_qt_clears_stale_activity_and_failed_parse(self):
         result = subprocess.run([sys.executable, str(ROOT/'test/native_bug_ui.py')],
                                 capture_output=True, text=True, timeout=10)

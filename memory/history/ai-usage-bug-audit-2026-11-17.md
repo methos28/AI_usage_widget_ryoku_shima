@@ -1,0 +1,15 @@
+# Current AI Usage bug audit
+
+Updated 2026-11-17 12:43 IST. The user requested local commits followed by bug testing and a report. Primary commit: 37db05d1f8ff1c3ccd7c056d9551e33b0374ff5b. Fork ai-usage-dashboard commit: aa11db31362d4e53f6831ce9139766e86112dea8. No push. Current runtime sources are unchanged after those commits; audit documents and evidence are uncommitted.
+
+All 204 existing cases have passing results, including the explicitly enabled shared-host follow-up. Ten isolated expected-correctness checks fail in five areas: mixed OpenCode stores omit distinct legacy history; account-unbound Codex quota caching survives a login switch for up to 120 seconds; future timestamps contaminate current/period totals in all three agents; stale cached sessions still appear running; malformed retained state/messages/cache rows can crash collectors or leave partially parsed UI. Actual Qt confirms both UI findings. The quota switch regression was inherited while adopting upstream cooldown behavior; its probe passes against the pre-change primary backup. Other affected functions predate saved titles. No title lookup regression was reproduced.
+
+No fixes or live data/auth/package/channel changes were made. The next agent should read ~/Documents/opencode_widget_ryoku_shima/BUG_AUDIT_2026-11-17.md and evidence/bug-audit-2026-11-17/ for exact triggers, code locations and suggested fixes. The negative probes intentionally exit 1 until repaired. Do not claim they are current failures in the user's real data.
+
+## Resolution: 2026-11-17 13:39 IST
+
+The user authorized applying all findings. All ten failures are fixed and verified by 18 permanent tests. Full primary and fork-targeted suites pass 222 cases each without skips; actual Qt, live module and all 20 old daily price dictionaries are verified. Fixes are installed in the supported user copy and published on ai-usage-dashboard as d4df8688ae6106ec47427b1d1e662578b49ca122; primary code is committed c9c3eefd786a4093ea80d9b24dec8b20d7b7c2e6. GitHub verifies three ahead, zero behind unstable-dev 0389a5e, with eight related files. Prior pending/unfixed statements above are superseded. Read BUG_FIX_RESULTS_2026-11-17.md and current test/test_bug_regressions.py, not the old historical negative probes, for current behavior. No package, channel, credential, primary-remote, upstream or new-PR change occurred.
+
+## PR #881 identity-promotion follow-up, 2026-11-17 13:54 IST
+
+An additional reviewer-found three-store anonymous/A/B case was reproduced and fixed with rows[match]["_message_id"] = mid. Published 98058bcd8395fdf855771d01ff03b49972e3a956; primary 72a67308ad012f83df349f375d6d29fb454bac0d. Both full suites now pass 224 cases, including direct identity/multiplicity and real three-store regression tests. The installed collector matches primary and passes both new cases. Actual native history remains unchanged. PR #881 head is verified; no review reply or thread resolution was sent. No package/channel/authentication or other branch changes. See primary evidence/pr881-identity-2026-11-17 and the latest project log.

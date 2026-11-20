@@ -5,6 +5,7 @@ import json
 import os
 import re
 import runpy
+import shutil
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +36,7 @@ class AgentSwitchTest(unittest.TestCase):
         result['claude']['_windows']=[]
         return result
 
+    @unittest.skipUnless(shutil.which('qs'), 'Quickshell required for native scene checks')
     def run_scene(self, qml, duration, data, delay):
         transitions['TransitionTest'].run_qml(self,qml,duration,cache_data=data,stat_delay=delay)
 

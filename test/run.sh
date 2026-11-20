@@ -4,6 +4,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 "$here/lint.sh"
+python3 "$here/test_lsp.py"
 python3 "$here/test_collector.py"
 python3 "$here/test_claude_usage.py"
 python3 "$here/test_claude_quota.py"

@@ -132,14 +132,14 @@ def build(tool: str, plan: str, model: str, models: list[tuple[str, float, float
 
     sessions = [
         {"id": "demo-running-1", "title": "Refactor billing flow",
-         "directory": "/home/methos/work/billing", "started": int((now - timedelta(minutes=24)).timestamp() * 1000),
+         "directory": "/example/projects/billing", "started": int((now - timedelta(minutes=24)).timestamp() * 1000),
          "updated": int(now.timestamp() * 1000), "tokens": 486_000, "cost": 1.24, "running": True},
         {"id": "demo-done-1", "title": "Debug auth timeout",
-         "directory": "/home/methos/work/api", "started": int((now - timedelta(hours=3)).timestamp() * 1000),
+         "directory": "/example/projects/api", "started": int((now - timedelta(hours=3)).timestamp() * 1000),
          "updated": int((now - timedelta(hours=2, minutes=12)).timestamp() * 1000),
          "tokens": 1_820_000, "cost": 2.10, "running": False},
         {"id": "demo-done-2", "title": "Write release notes",
-         "directory": "/home/methos/work/docs", "started": int((now - timedelta(days=1)).timestamp() * 1000),
+         "directory": "/example/projects/docs", "started": int((now - timedelta(days=1)).timestamp() * 1000),
          "updated": int((now - timedelta(hours=20)).timestamp() * 1000),
          "tokens": 640_000, "cost": 0.80, "running": False},
     ]

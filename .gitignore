@@ -1,2 +1,17 @@
 __pycache__/
 *.pyc
+
+# Machine-local validation captures and private application data stay local.
+evidence/
+.env
+.env.*
+!.env.example
+.cache/
+auth.json
+.credentials.json
+.claude.json
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log

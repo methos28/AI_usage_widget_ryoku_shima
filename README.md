@@ -7,12 +7,15 @@ from the chip at the top of the card; each one is read from its own local
 cache. Codex quota refresh uses its existing CLI login, and estimated spending
 downloads public model prices without sending login credentials.
 
-This repository provides the standalone installation. The built-in Ryoku
-integration is proposed in [PR #757](https://github.com/Ryoku-dev/ryoku/pull/757).
+This repository is the standalone source of truth. The built-in integration
+and follow-up fixes landed through [PR #779](https://github.com/Ryoku-dev/ryoku/pull/779)
+and [PR #881](https://github.com/Ryoku-dev/ryoku/pull/881). The approved motion
+and agent-switch changes are on the user's `ai-usage-dashboard` feature branch.
+All three agents are supported in the current source.
 
-Claude's standalone preview reads native Claude Code Desktop/CLI history,
-account limits and local API-equivalent spending. The downstream Ryoku fork
-still holds Claude out pending live lifecycle acceptance.
+**Continuing development on another PC:** start with [HANDOFF-CODEX.md](HANDOFF-CODEX.md),
+[project memory](memory/current-state.md), and the [setup guide](docs/continuing-development.md).
+Agent instructions and relevant skills travel with the repository.
 
 **Install time:** about 10 minutes. **Skills needed:** copy and paste.
 
@@ -487,12 +490,12 @@ the account's quota percentages. It also covers daily price snapshots, missing
 historical prices, offline fallback, event deduplication, cache permissions,
 RPC cleanup/redaction and account-type changes.
 
-The standalone suite contains 126 tests: six OpenCode, 43 Codex, eight Claude
-integration, 24 Claude quota, 20 Claude lifecycle, 13 Claude spending and 12 widget
-tests, plus the cache contract. QML compilation checks require Quickshell and
-Ryoku imports. The live preview was checked on stable Ryoku; full runtime
-validation on an unstable installation remains separate from these source
-checks. The host-side built-in discovery changes are in the linked Ryoku PR.
+The approved runtime passed 233 cases per source copy, including native motion
+and all-agent switch checks. See the latest PROJECT_LOG.md checkpoint for the
+current count after continuity/tooling tests. Quickshell-dependent cases skip
+when qs is absent; full desktop validation still requires compatible Ryoku
+imports and Qt. The [continuation guide](docs/continuing-development.md) explains
+source-only and full-host checks.
 
 **Rules**
 

@@ -6,9 +6,10 @@ here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 
 lint="$(command -v /usr/lib/qt6/bin/qmllint || command -v qmllint || true)"
+imports="${RYOKU_QML_IMPORTS:-$HOME/.config/quickshell}"
 if [ -n "$lint" ]; then
     while IFS= read -r -d '' file; do
-        "$lint" -I "$HOME/.config/quickshell" "$file"
+        "$lint" -I "$imports" "$file"
     done < <(find "$root/ai-usage" -name '*.qml' -print0)
 else
     echo "qmllint not found, skipping QML" >&2

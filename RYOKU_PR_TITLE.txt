@@ -1,0 +1,1 @@
+[global] shima: smooth usage updates and isolate agent switches

@@ -48,3 +48,11 @@ commit IDs are recorded in PROJECT_LOG.md and PR_TRACKER.md.
 
 Evidence is retained in `evidence/bug-fixes-2026-11-17/`. The pre-change backup is
 `~/.local/share/ryoku/ai-usage-backup/audit-fixes-20261117-132318/`.
+
+## Publication verified
+
+Primary: `c9c3eefd786a4093ea80d9b24dec8b20d7b7c2e6`. Published Ryoku branch: `ai-usage-dashboard` at `d4df8688ae6106ec47427b1d1e662578b49ca122`. GitHub confirms three commits ahead, zero behind latest official `unstable-dev` (`0389a5e`) and eight related files changed. The fork checkout is clean; other branches and the primary main remote were not pushed. All audited fixes are now included in the published feature branch.
+
+## PR #881 follow-up
+
+The reviewer found one additional three-store identity-promotion case missing from the earlier suite. It is fixed and published as 98058bcd8395fdf855771d01ff03b49972e3a956, primary 72a6730. Two new regressions cover the direct identity matrix and actual loaders. Both full suites now pass 224 cases without skips. The fix is also installed and tested locally.
